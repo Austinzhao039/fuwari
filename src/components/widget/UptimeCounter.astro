@@ -1,0 +1,56 @@
+---
+import I18nKey from "../../i18n/i18nKey";
+import { i18n } from "../../i18n/translation";
+import { siteConfig } from "../../config";
+import WidgetLayout from "./WidgetLayout.astro";
+
+const startDate = siteConfig.startDate;
+---
+
+{startDate && (
+	<WidgetLayout name={i18n(I18nKey.uptime)} id="uptime">
+		<div
+			id="uptime-counter"
+			class="text-center text-sm text-neutral-500 dark:text-neutral-400 py-1"
+			data-start-date={startDate}
+		>
+			<div id="uptime-text">--</div>
+		</div>
+	</WidgetLayout>
+)}
+
+{startDate && (
+	<script>
+		(function () {
+			const el = document.getElementById("uptime-text");
+			const startStr = document
+				.getElementById("uptime-counter")
+				?.getAttribute("data-start-date");
+			if (!el || !startStr) return;
+
+			const start = new Date(startStr + "T00:00:00");
+
+			function pad(n: number) {
+				return String(n).padStart(2, "0");
+			}
+
+			function tick() {
+				const now = new Date();
+				let diff = now.getTime() - start.getTime();
+				if (diff < 0) diff = 0;
+
+				const totalSec = Math.floor(diff / 1000);
+				const days = Math.floor(totalSec / 86400);
+				const hours = Math.floor((totalSec % 86400) / 3600);
+				const minutes = Math.floor((totalSec % 3600) / 60);
+				const seconds = totalSec % 60;
+
+				el.textContent =
+					`本站已运行：${days}天${pad(hours)}时${pad(minutes)}分${pad(seconds)}秒`;
+			}
+
+			tick();
+			setInterval(tick, 1000);
+		})();
+	</script>
+)}

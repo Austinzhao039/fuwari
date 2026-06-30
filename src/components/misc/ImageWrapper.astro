@@ -1,0 +1,55 @@
+---
+import path from "node:path";
+
+interface Props {
+    id?: string;
+    src: string;
+    class?: string;
+    alt?: string;
+    position?: string;
+    basePath?: string;
+}
+
+import { Image } from "astro:assets";
+import { url } from "../../utils/url-utils";
+
+const { id, src, alt, position = "center", basePath = "/" } = Astro.props;
+const className = Astro.props.class;
+
+const isLocal = !(
+    src.startsWith("/") ||
+    src.startsWith("http") ||
+    src.startsWith("https") ||
+    src.startsWith("data:")
+);
+const isPublic = src.startsWith("/");
+
+let img = null;
+if (isLocal) {
+    const files = import.meta.glob<ImageMetadata>("../../**", {
+        import: "default",
+    });
+    let normalizedPath = path
+        .normalize(path.join("../../", basePath, src))
+        .replace(/\\/g, "/");
+    const file = files[normalizedPath];
+    
+    if (file) {
+        img = await file();  // 只有在file存在时才调用
+    } else {
+        console.error(`\n[ERROR] Image file not found: ${normalizedPath.replace("../../", "src/")}`);
+        // 可以选择设置一个默认图片或保持img为null
+    }
+}
+
+const imageClass = "w-full h-full object-cover";
+const imageStyle = `object-position: ${position}`;
+---
+
+<div id={id} class:list={[className, 'overflow-hidden relative']}>
+    <div class="transition absolute inset-0 dark:bg-black/10 bg-opacity-50 pointer-events-none"></div>
+    {isLocal && img && <Image src={img} alt={alt || ""} class={imageClass} style={imageStyle}/>}
+    {!isLocal && <img src={isPublic ? url(src) : src} alt={alt || ""} class={imageClass} style={imageStyle}/>}
+    {/* 添加错误处理显示 */}
+    {isLocal && !img && <div class="bg-red-100 p-4">图片加载失败</div>}
+</div>
