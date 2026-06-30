@@ -9,7 +9,10 @@ export const es: Translation = {
 
 	[Key.tags]: "Etiquetas",
 	[Key.categories]: "Categorías",
+<<<<<<< HEAD
 	[Key.friends]: "Amigos",
+=======
+>>>>>>> f8ad3493458bb8693f983735b85656fff5ca2545
 	[Key.recentPosts]: "Publicaciones recientes",
 
 	[Key.comments]: "Comentarios",
@@ -33,8 +36,11 @@ export const es: Translation = {
 
 	[Key.more]: "Más",
 
+<<<<<<< HEAD
 	[Key.uptime]: "Tiempo activo",
 
+=======
+>>>>>>> f8ad3493458bb8693f983735b85656fff5ca2545
 	[Key.author]: "Autor",
 	[Key.publishedAt]: "Publicado el",
 	[Key.license]: "Licencia",

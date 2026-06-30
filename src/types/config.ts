@@ -36,9 +36,12 @@ export type SiteConfig = {
 	};
 
 	favicon: Favicon[];
+<<<<<<< HEAD
 
 	/** 网站起始运行日期，格式 "YYYY-MM-DD" */
 	startDate?: string;
+=======
+>>>>>>> f8ad3493458bb8693f983735b85656fff5ca2545
 };
 
 export type Favicon = {
@@ -52,7 +55,10 @@ export enum LinkPreset {
 	Archive = 1,
 	About = 2,
 	Series = 3,
+<<<<<<< HEAD
 	Friends = 4,
+=======
+>>>>>>> f8ad3493458bb8693f983735b85656fff5ca2545
 }
 
 export type NavBarLink = {

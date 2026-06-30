@@ -9,7 +9,10 @@ export const zh_TW: Translation = {
 
 	[Key.tags]: "標籤",
 	[Key.categories]: "分類",
+<<<<<<< HEAD
 	[Key.friends]: "友鏈",
+=======
+>>>>>>> f8ad3493458bb8693f983735b85656fff5ca2545
 	[Key.recentPosts]: "最新文章",
 
 	[Key.comments]: "評論",
@@ -33,8 +36,11 @@ export const zh_TW: Translation = {
 
 	[Key.more]: "更多",
 
+<<<<<<< HEAD
 	[Key.uptime]: "運行時間",
 
+=======
+>>>>>>> f8ad3493458bb8693f983735b85656fff5ca2545
 	[Key.author]: "作者",
 	[Key.publishedAt]: "發佈於",
 	[Key.license]: "許可協議",

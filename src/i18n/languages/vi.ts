@@ -9,7 +9,10 @@ export const vi: Translation = {
 
 	[Key.tags]: "Thẻ",
 	[Key.categories]: "Danh mục",
+<<<<<<< HEAD
 	[Key.friends]: "Bạn bè",
+=======
+>>>>>>> f8ad3493458bb8693f983735b85656fff5ca2545
 	[Key.recentPosts]: "Bài viết mới nhất",
 
 	[Key.comments]: "Bình luận",
@@ -33,8 +36,11 @@ export const vi: Translation = {
 
 	[Key.more]: "Thêm",
 
+<<<<<<< HEAD
 	[Key.uptime]: "Thời gian hoạt động",
 
+=======
+>>>>>>> f8ad3493458bb8693f983735b85656fff5ca2545
 	[Key.author]: "Tác giả",
 	[Key.publishedAt]: "Đăng vào lúc",
 	[Key.license]: "Giấy phép bản quyền",

@@ -9,7 +9,10 @@ export const id: Translation = {
 
 	[Key.tags]: "Tag",
 	[Key.categories]: "Kategori",
+<<<<<<< HEAD
 	[Key.friends]: "Teman",
+=======
+>>>>>>> f8ad3493458bb8693f983735b85656fff5ca2545
 	[Key.recentPosts]: "Postingan Terbaru",
 
 	[Key.comments]: "Komentar",
@@ -33,8 +36,11 @@ export const id: Translation = {
 
 	[Key.more]: "Lainnya",
 
+<<<<<<< HEAD
 	[Key.uptime]: "Waktu Aktif",
 
+=======
+>>>>>>> f8ad3493458bb8693f983735b85656fff5ca2545
 	[Key.author]: "Penulis",
 	[Key.publishedAt]: "Diterbitkan pada",
 	[Key.license]: "Lisensi",

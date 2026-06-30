@@ -9,7 +9,10 @@ export const tr: Translation = {
 
 	[Key.tags]: "Taglar",
 	[Key.categories]: "Katagoriler",
+<<<<<<< HEAD
 	[Key.friends]: "Arkadaşlar",
+=======
+>>>>>>> f8ad3493458bb8693f983735b85656fff5ca2545
 	[Key.recentPosts]: "Son Paylaşımlar",
 
 	[Key.comments]: "Yorumlar",
@@ -33,8 +36,11 @@ export const tr: Translation = {
 
 	[Key.more]: "Daha Fazla",
 
+<<<<<<< HEAD
 	[Key.uptime]: "Çalışma Süresi",
 
+=======
+>>>>>>> f8ad3493458bb8693f983735b85656fff5ca2545
 	[Key.author]: "Yazar",
 	[Key.publishedAt]: "Yayınlanma:",
 	[Key.license]: "Lisans",

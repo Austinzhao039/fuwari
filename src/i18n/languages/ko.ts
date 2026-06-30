@@ -9,7 +9,10 @@ export const ko: Translation = {
 
 	[Key.tags]: "태그",
 	[Key.categories]: "카테고리",
+<<<<<<< HEAD
 	[Key.friends]: "친구 링크",
+=======
+>>>>>>> f8ad3493458bb8693f983735b85656fff5ca2545
 	[Key.recentPosts]: "최근 게시물",
 
 	[Key.comments]: "댓글",
@@ -33,8 +36,11 @@ export const ko: Translation = {
 
 	[Key.more]: "더 보기",
 
+<<<<<<< HEAD
 	[Key.uptime]: "운영 시간",
 
+=======
+>>>>>>> f8ad3493458bb8693f983735b85656fff5ca2545
 	[Key.author]: "저자",
 	[Key.publishedAt]: "게시일",
 	[Key.license]: "라이선스",

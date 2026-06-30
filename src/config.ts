@@ -38,15 +38,21 @@ export const siteConfig: SiteConfig = {
 		//   sizes: '32x32',              // (Optional) Size of the favicon, set only if you have favicons of different sizes
 		// }
 	],
+<<<<<<< HEAD
 
 	startDate: "2025-12-27",
+=======
+>>>>>>> f8ad3493458bb8693f983735b85656fff5ca2545
 };
 
 export const navBarConfig: NavBarConfig = {
 	links: [
 		LinkPreset.Home,
 		LinkPreset.Archive,
+<<<<<<< HEAD
 		LinkPreset.Friends,
+=======
+>>>>>>> f8ad3493458bb8693f983735b85656fff5ca2545
 		LinkPreset.About,
 		{
 			name: "GitHub",

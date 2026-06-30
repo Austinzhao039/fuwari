@@ -7,7 +7,10 @@ enum I18nKey {
 
 	tags = "tags",
 	categories = "categories",
+<<<<<<< HEAD
 	friends = "friends",
+=======
+>>>>>>> f8ad3493458bb8693f983735b85656fff5ca2545
 	recentPosts = "recentPosts",
 
 	comments = "comments",
@@ -31,8 +34,11 @@ enum I18nKey {
 
 	more = "more",
 
+<<<<<<< HEAD
 	uptime = "uptime",
 
+=======
+>>>>>>> f8ad3493458bb8693f983735b85656fff5ca2545
 	author = "author",
 	publishedAt = "publishedAt",
 	license = "license",

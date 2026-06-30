@@ -9,7 +9,10 @@ export const th: Translation = {
 
 	[Key.tags]: "ป้ายกำกับ",
 	[Key.categories]: "หมวดหมู่",
+<<<<<<< HEAD
 	[Key.friends]: "ลิงก์เพื่อน",
+=======
+>>>>>>> f8ad3493458bb8693f983735b85656fff5ca2545
 	[Key.recentPosts]: "โพสต์ล่าสุด",
 
 	[Key.comments]: "ความคิดเห็น",
@@ -33,8 +36,11 @@ export const th: Translation = {
 
 	[Key.more]: "ดูเพิ่ม",
 
+<<<<<<< HEAD
 	[Key.uptime]: "เวลาทำงาน",
 
+=======
+>>>>>>> f8ad3493458bb8693f983735b85656fff5ca2545
 	[Key.author]: "ผู้เขียน",
 	[Key.publishedAt]: "เผยแพร่เมื่อ",
 	[Key.license]: "สัญญาอนุญาต",

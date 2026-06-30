@@ -9,7 +9,10 @@ export const en: Translation = {
 
 	[Key.tags]: "Tags",
 	[Key.categories]: "Categories",
+<<<<<<< HEAD
 	[Key.friends]: "Friends",
+=======
+>>>>>>> f8ad3493458bb8693f983735b85656fff5ca2545
 	[Key.recentPosts]: "Recent Posts",
 
 	[Key.comments]: "Comments",
@@ -33,8 +36,11 @@ export const en: Translation = {
 
 	[Key.more]: "More",
 
+<<<<<<< HEAD
 	[Key.uptime]: "Uptime",
 
+=======
+>>>>>>> f8ad3493458bb8693f983735b85656fff5ca2545
 	[Key.author]: "Author",
 	[Key.publishedAt]: "Published at",
 	[Key.license]: "License",
