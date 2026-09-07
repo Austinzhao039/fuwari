@@ -38,6 +38,24 @@ const map: { [key: string]: Translation } = {
 	tr_tr: tr,
 };
 
+/** 支持的语言列表（用于语言切换器） */
+export const supportedLanguages: { code: string; label: string }[] = [
+	{ code: "zh_CN", label: "简体中文" },
+	{ code: "zh_TW", label: "繁體中文" },
+	{ code: "en", label: "English" },
+	{ code: "ja", label: "日本語" },
+	{ code: "ko", label: "한국어" },
+];
+
+/** 导出所有翻译数据（供客户端使用） */
+export function getAllTranslations(): Record<string, Translation> {
+	const result: Record<string, Translation> = {};
+	for (const lang of supportedLanguages) {
+		result[lang.code] = getTranslation(lang.code);
+	}
+	return result;
+}
+
 export function getTranslation(lang: string): Translation {
 	return map[lang.toLowerCase()] || defaultTranslation;
 }

@@ -9,10 +9,7 @@ export const ja: Translation = {
 
 	[Key.tags]: "タグ",
 	[Key.categories]: "カテゴリ",
-<<<<<<< HEAD
 	[Key.friends]: "リンク",
-=======
->>>>>>> f8ad3493458bb8693f983735b85656fff5ca2545
 	[Key.recentPosts]: "最近の投稿",
 
 	[Key.comments]: "コメント",
@@ -36,11 +33,8 @@ export const ja: Translation = {
 
 	[Key.more]: "もっと",
 
-<<<<<<< HEAD
 	[Key.uptime]: "稼働時間",
 
-=======
->>>>>>> f8ad3493458bb8693f983735b85656fff5ca2545
 	[Key.author]: "作者",
 	[Key.publishedAt]: "公開日",
 	[Key.license]: "ライセンス",

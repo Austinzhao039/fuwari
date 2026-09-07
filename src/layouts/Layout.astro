@@ -113,7 +113,7 @@ const bannerOffset =
 			/>
 		))}
 
-		<!-- Set the theme before the page is rendered to avoid a flash -->
+		<!-- Set language & theme before the page is rendered to avoid a flash -->
 		<script is:inline define:vars={{DEFAULT_THEME, LIGHT_MODE, DARK_MODE, AUTO_MODE, BANNER_HEIGHT_EXTEND, PAGE_WIDTH, configHue}}>
 			// Load the theme from local storage
 			const theme = localStorage.getItem('theme') || DEFAULT_THEME;
@@ -135,6 +135,10 @@ const bannerOffset =
 			// Load the hue from local storage
 			const hue = localStorage.getItem('hue') || configHue;
 			document.documentElement.style.setProperty('--hue', hue);
+
+			// Load language preference
+			const lang = localStorage.getItem('fuwari-lang');
+			if (lang) document.documentElement.lang = lang.replace('_', '-');
 
 			// calculate the --banner-height-extend, which needs to be a multiple of 4 to avoid blurry text
 			let offset = Math.floor(window.innerHeight * (BANNER_HEIGHT_EXTEND / 100));

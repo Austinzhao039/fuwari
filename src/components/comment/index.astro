@@ -1,22 +1,43 @@
 ---
 import type { CollectionEntry } from 'astro:content'
 import { commentConfig } from '@/config'
-import Twikoo from './Twikoo.astro'
+
 interface Props {
   post: CollectionEntry<'posts'>
 }
 
-const { id, data, slug } = Astro.props.post
-
+const { slug } = Astro.props.post
 const path = `/posts/${slug}`
-const url = `${Astro.site?.href}${path}`
-
-let commentService = ''
-if (commentConfig?.twikoo) {
-  commentService = 'twikoo'
-}
+const envId = commentConfig?.twikoo?.envId || ''
 ---
-<div class="card-base p-6 mb-4">
-  {commentService === 'twikoo' && <Twikoo path={path} />}
-  {commentService === '' && null}
-</div>
+{envId && (
+  <div class="card-base p-6 mb-4" id="tcomment-wrap" data-env-id={envId} data-path={path}>
+    <div id="tcomment"></div>
+  </div>
+)}
+
+{envId && (
+  <script>
+    (function() {
+      var wrap = document.getElementById("tcomment-wrap");
+      if (!wrap) return;
+      var envId = wrap.getAttribute("data-env-id");
+      var path = wrap.getAttribute("data-path");
+      if (!envId || !path) return;
+
+      function boot() {
+        if (typeof twikoo !== "undefined") {
+          twikoo.init({ envId: envId, el: "#tcomment", path: path });
+        } else {
+          var s = document.createElement("script");
+          s.src = "https://cdn.staticfile.org/twikoo/1.6.32/twikoo.all.min.js";
+          s.onload = function() {
+            twikoo.init({ envId: envId, el: "#tcomment", path: path });
+          };
+          document.head.appendChild(s);
+        }
+      }
+      requestAnimationFrame(boot);
+    })();
+  </script>
+)}
