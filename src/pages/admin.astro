@@ -137,6 +137,7 @@ const ownerLogin = (giscus?.repo ?? "").split("/")[0] || "";
 					<p class="section-desc">
 						登记哪些账号是管理员。他们的评论会带上「管理员」标签，方便在评论区一眼认出来。
 					</p>
+					<p class="section-desc" id="badgeStatus">评论区徽章：读取中…</p>
 				</header>
 
 				<form class="card setting-group" id="adminForm" autocomplete="off">
@@ -761,7 +762,35 @@ const ownerLogin = (giscus?.repo ?? "").split("/")[0] || "";
 						: `<li class="list-empty">暂无用户</li>`;
 				}
 
+				// 评论区（giscus）里的「管理员」徽章是构建时按名单写进主题 CSS 的，
+				// 这里显示「上一次构建用的是谁」，方便发现名单改了但没重新构建的情况
+				async function renderBadgeStatus() {
+					const el = $("#badgeStatus");
+					if (!el) return;
+					let meta = null;
+					try {
+						const res = await fetch("/giscus/meta.json", { cache: "no-store" });
+						if (res.ok) meta = await res.json();
+					} catch {
+						meta = null;
+					}
+					if (!meta) {
+						el.textContent = "评论区徽章：还没有生成，构建时会由 scripts/build-giscus-theme.mjs 生成";
+						return;
+					}
+					const built = (meta.admins || []).map((a) => String(a.login).toLowerCase()).sort();
+					const cur = ADMINS.map((a) => String(a.username).toLowerCase()).sort();
+					const same = built.length === cur.length && built.every((v, i) => v === cur[i]);
+					const when = new Date(meta.generatedAt).toLocaleString("zh-CN", { hour12: false });
+					el.innerHTML =
+						`评论区徽章：<strong>${esc(meta.badge || "管理员")}</strong> · ` +
+						(built.length ? built.map(esc).join("、") : "无账号") +
+						` · 生成于 ${esc(when)}` +
+						(same ? "" : ' <span class="badge badge-pending">与上面名单不一致，重新构建后同步</span>');
+				}
+
 				function renderAdmins() {
+					renderBadgeStatus();
 					$("#adminList").innerHTML = ADMINS.length
 						? ADMINS.map(
 								(a, i) => `

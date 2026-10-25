@@ -1,0 +1,14 @@
+{
+  "generatedAt": "2026-10-25T09:03:00.073Z",
+  "badge": "管理员",
+  "admins": [
+    {
+      "login": "Austinzhao039",
+      "name": "Austin666"
+    }
+  ],
+  "version": {
+    "light": "58a3e38033",
+    "dark": "8d578b1804"
+  }
+}

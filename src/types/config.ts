@@ -134,6 +134,10 @@ type GiscusConfig = {
 	reactionsEnabled?: string;
 	inputPosition?: string;
 	lang?: string;
+	// 自定义主题 CSS 的目录（必须带 CORS，见 scripts/build-giscus-theme.mjs）
+	themeBase?: string;
+	// 管理员徽章文案（不填则用「管理员」）
+	badgeText?: string;
 };
 
 export type ExpressiveCodeConfig = {

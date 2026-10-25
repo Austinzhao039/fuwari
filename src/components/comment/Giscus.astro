@@ -1,13 +1,39 @@
 ---
 import { commentConfig } from "@/config";
+import { existsSync, readFileSync } from "node:fs";
 
 const giscus = commentConfig.giscus;
 const ready = Boolean(giscus?.repo && giscus?.repoId && giscus?.category && giscus?.categoryId);
+
+// 自定义主题（内置主题 + 「管理员」徽章）由 scripts/build-giscus-theme.mjs 生成，
+// 版本号取自 meta.json 的内容哈希，用来绕过 CDN / 浏览器缓存。
+let version = { light: "", dark: "" };
+try {
+	const metaPath = new URL("../../public/giscus/meta.json", import.meta.url);
+	if (existsSync(metaPath)) {
+		const meta = JSON.parse(readFileSync(metaPath, "utf8"));
+		if (meta?.version) version = meta.version;
+	}
+} catch {
+	// 没生成过就退回内置主题，不影响评论功能
+}
+
+const base = (giscus?.themeBase ?? "").replace(/\/+$/, "");
+const themeLight = base && version.light ? `${base}/light.css?v=${version.light}` : "";
+const themeDark = base && version.dark ? `${base}/dark.css?v=${version.dark}` : "";
 ---
 
-<section class="card-base p-6 mb-4" id="giscus-wrap">
+<section
+	class="card-base p-6 mb-4"
+	id="giscus-wrap"
+	data-theme-light={themeLight}
+	data-theme-dark={themeDark}
+	data-badge={giscus?.badgeText ?? "管理员"}
+>
 	{
 		ready ? (
+			// data-theme 先给内置 light 兜底，加载后再换成带「管理员」徽章的自定义主题；
+			// 万一 CDN 拿不到，giscus 会保留内置主题，不会变成没样式的白板
 			<script
 				is:inline
 				src="https://giscus.app/client.js"
@@ -37,44 +63,69 @@ const ready = Boolean(giscus?.repo && giscus?.repoId && giscus?.category && gisc
 <!-- giscus 在 iframe 里，不继承站点主题，要手动 postMessage 通知它切换 -->
 <script is:inline>
 	(function () {
-		function postTheme() {
+		var wrap = document.getElementById("giscus-wrap");
+		if (!wrap) return;
+		var LIGHT = wrap.getAttribute("data-theme-light") || "";
+		var DARK = wrap.getAttribute("data-theme-dark") || "";
+		var current = null;
+		var sentFor = "";
+
+		function isDark() {
+			return document.documentElement.classList.contains("dark");
+		}
+
+		function send(theme) {
 			var frame = document.querySelector("iframe.giscus-frame");
-			if (!frame || !frame.contentWindow) return;
-			var dark = document.documentElement.classList.contains("dark");
+			if (!frame || !frame.contentWindow || !theme) return;
 			frame.contentWindow.postMessage(
-				{ giscus: { setConfig: { theme: dark ? "dark" : "light" } } },
+				{ giscus: { setConfig: { theme: theme } } },
 				"https://giscus.app",
 			);
 		}
 
-		var current = null;
-		function attach() {
+		function apply(force) {
 			var frame = document.querySelector("iframe.giscus-frame");
-			if (frame && frame !== current) {
-				current = frame;
-				frame.addEventListener("load", postTheme);
+			if (!frame) return;
+			var dark = isDark();
+			var custom = dark ? DARK : LIGHT;
+			var key = (dark ? "d" : "l") + custom;
+			if (!force && frame === current && key === sentFor) return;
+			current = frame;
+			sentFor = key;
+			// 先发内置主题（保证一定有样式），再发带徽章的自定义主题
+			send(dark ? "dark" : "light");
+			if (custom) {
+				window.setTimeout(function () {
+					send(custom);
+				}, 200);
 			}
-			postTheme();
 		}
 
-		// iframe 是异步插入的，用观察器等它出现
+		// iframe 是异步插入 / 懒加载的，用观察器等它出现
 		var pending = false;
 		new MutationObserver(function () {
 			if (pending) return;
 			pending = true;
 			requestAnimationFrame(function () {
 				pending = false;
-				attach();
+				apply(false);
 			});
 		}).observe(document.body, { childList: true, subtree: true });
 
 		// 站点切深浅色时同步
-		new MutationObserver(postTheme).observe(document.documentElement, {
-			attributes: true,
-			attributeFilter: ["class"],
-		});
+		new MutationObserver(function () {
+			apply(true);
+		}).observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
 
-		window.addEventListener("load", postTheme);
-		attach();
+		var first = document.querySelector("iframe.giscus-frame");
+		if (first) {
+			first.addEventListener("load", function () {
+				apply(true);
+			});
+		}
+		window.addEventListener("load", function () {
+			apply(true);
+		});
+		apply(false);
 	})();
 </script>

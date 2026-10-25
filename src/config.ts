@@ -126,6 +126,12 @@ export const commentConfig: CommentConfig = {
 		reactionsEnabled: "1",
 		inputPosition: "top",
 		lang: "zh-CN",
+		// 评论区「管理员」徽章的样式：giscus 在 iframe 里，只能靠 data-theme 传自定义 CSS。
+		// 该 CSS 由 scripts/build-giscus-theme.mjs 按后台管理员名单生成（public/giscus/）。
+		// giscus 用 <link crossorigin> 加载，必须带 CORS 头 —— 本站 nginx 不发，
+		// 所以走 jsDelivr 镜像仓库里的同一份文件（ACAO: *）。
+		themeBase: "https://cdn.jsdelivr.net/gh/Austinzhao039/fuwari@main/public/giscus",
+		badgeText: "管理员",
 	},
 	moderation: {
 		// 与后台 AKISMET_KEY=MANUAL_REVIEW 对应：开了审核就置 true，前端会提示访客
