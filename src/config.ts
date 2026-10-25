@@ -101,10 +101,10 @@ const twikooEnvId = /^https?:\/\/\S+$/i.test(twikooEnvOverride ?? "")
 	? (twikooEnvOverride as string)
 	: DEFAULT_TWIKOO_ENV_ID;
 
-// twikoo | giscus。切换用环境变量 COMMENT_PROVIDER，或直接改这里的默认值。
-// giscus 需要 GitHub 账号登录后才能评论，审核在 GitHub Discussions 里做。
+// twikoo | giscus。默认用 giscus：必须登录 GitHub 才能发评论。
+// 想临时退回 Twikoo：构建时加 COMMENT_PROVIDER=twikoo，或改下面的默认值。
 const commentProvider: "twikoo" | "giscus" =
-	envBag?.COMMENT_PROVIDER === "giscus" ? "giscus" : "twikoo";
+	envBag?.COMMENT_PROVIDER === "twikoo" ? "twikoo" : "giscus";
 
 export const commentConfig: CommentConfig = {
 	provider: commentProvider,
@@ -118,7 +118,9 @@ export const commentConfig: CommentConfig = {
 		repo: "Austinzhao039/fuwari",
 		repoId: "R_kgDOQrqIAw", // 公开 API 查到的 node_id
 		category: "Announcements",
-		categoryId: "", // ← 待填：在 https://giscus.app 选完仓库和分类后复制过来
+		// Announcements 分类只有维护者能新建 discussion，giscus App 代发，
+		// 普通用户没法绕过评论区自己开帖。
+		categoryId: "DIC_kwDOQrqIA84DJkEC",
 		mapping: "pathname",
 		strict: "0",
 		reactionsEnabled: "1",
