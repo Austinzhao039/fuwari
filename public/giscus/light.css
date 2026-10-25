@@ -108,6 +108,7 @@ main .gsc-loading-image {
 .gsc-comment-author a.gsc-comment-author-avatar[href="https://github.com/Austinzhao039"]::after {
 	content: "管理员";
 	display: inline-block;
+	flex: none;
 	margin-left: 6px;
 	padding: 0 6px;
 	height: 18px;

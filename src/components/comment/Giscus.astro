@@ -86,6 +86,13 @@ const themeDark = base && version.dark ? `${base}/dark.css?v=${version.dark}` : 
 		function apply(force) {
 			var frame = document.querySelector("iframe.giscus-frame");
 			if (!frame) return;
+			// 懒加载的 iframe 插入时还没 load，消息会被丢掉；等它 load 完再发一次
+			if (!frame.__giscusThemeHooked) {
+				frame.__giscusThemeHooked = true;
+				frame.addEventListener("load", function () {
+					apply(true);
+				});
+			}
 			var dark = isDark();
 			var custom = dark ? DARK : LIGHT;
 			var key = (dark ? "d" : "l") + custom;
@@ -117,12 +124,14 @@ const themeDark = base && version.dark ? `${base}/dark.css?v=${version.dark}` : 
 			apply(true);
 		}).observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
 
-		var first = document.querySelector("iframe.giscus-frame");
-		if (first) {
-			first.addEventListener("load", function () {
-				apply(true);
-			});
-		}
+		// 兜底：data-loading="lazy" 的 iframe 只有滚到附近才真正加载，
+		// 这里前 20 秒每 0.8 秒补发一次（apply 内部会去重，不会刷屏）
+		var tries = 0;
+		var timer = window.setInterval(function () {
+			apply(false);
+			if (++tries > 25) window.clearInterval(timer);
+		}, 800);
+
 		window.addEventListener("load", function () {
 			apply(true);
 		});

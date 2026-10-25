@@ -91,6 +91,7 @@ function badgeRules(admins, palette) {
 			(a) => `.gsc-comment-author a.gsc-comment-author-avatar[href=${h(`https://github.com/${a.login}`)}]::after {
 	content: ${h(BADGE_TEXT)};
 	display: inline-block;
+	flex: none;
 	margin-left: 6px;
 	padding: 0 6px;
 	height: 18px;

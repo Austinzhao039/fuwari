@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-25T09:03:00.073Z",
+  "generatedAt": "2026-10-25T09:07:27.904Z",
   "badge": "管理员",
   "admins": [
     {
@@ -8,7 +8,7 @@
     }
   ],
   "version": {
-    "light": "58a3e38033",
-    "dark": "8d578b1804"
+    "light": "abf2680c8f",
+    "dark": "8687529d32"
   }
 }
