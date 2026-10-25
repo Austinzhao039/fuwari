@@ -156,6 +156,13 @@ const main = async () => {
 	};
 	writeFileSync(join(ROOT, "public/giscus/meta.json"), JSON.stringify(meta, null, 2) + "\n", "utf8");
 
+	// 同一份名单也导出成 JSON，给 twikoo-giscus 评论区在前端打「管理员」徽章用
+	writeFileSync(
+		join(ROOT, "public/admins.json"),
+		JSON.stringify(meta, null, 2) + "\n",
+		"utf8",
+	);
+
 	console.log(`[giscus-theme] 名单来源：${source}`);
 	console.log(`[giscus-theme] 徽章文案：${BADGE_TEXT}；账号：${admins.map((a) => a.login).join(", ") || "（无）"}`);
 	console.log(`[giscus-theme] 已写 public/giscus/{light,dark}.css  version=${meta.version.light}/${meta.version.dark}`);

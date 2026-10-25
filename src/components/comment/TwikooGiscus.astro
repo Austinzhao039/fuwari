@@ -1,0 +1,709 @@
+---
+/**
+ * twikoo-giscus：GitHub 登录（giscus 提供身份）+ 评论写进自建 Twikoo
+ *
+ * 为什么拆成两半：
+ *   - giscus 的评论在一个 giscus.app 域的 <iframe> 里，站外页面改不了它的 DOM，
+ *     所以 IP 属地、浏览器信息、同意书、管理员徽章这些需求它一个都做不到。
+ *   - 但它是现成的 GitHub OAuth App，登录成功后会把登录者身份（viewer）postMessage
+ *     给父页面 —— 这正好是 Twikoo 唯一缺的东西。
+ *   - Twikoo 自建后端本身就返回 ipRegion（归属地）/ os / browser，还有审核与违禁词，
+ *     评论区由它渲染，上面那些需求就全都还在。
+ *   合起来 = 必须 GitHub 登录 + 数据在自己服务器，服务端不用再部署 Artalk。
+ *
+ * 注意：giscus 只在 discussion 已存在时才抛 viewer（见 giscus 源码
+ * components/Giscus.tsx：`if (!emitMetadata || !data.discussion.id) return`），
+ * 所以登录用的 iframe 固定指向一个专门的帖子（config 里的 giscus.loginTerm）。
+ */
+import type { CollectionEntry } from "astro:content";
+import { commentConfig } from "@/config";
+import { existsSync, readFileSync } from "node:fs";
+
+interface Props {
+	post: CollectionEntry<"posts">;
+}
+
+const { post } = Astro.props;
+const twikoo = commentConfig.twikoo;
+const giscus = commentConfig.giscus;
+const moderation = commentConfig.moderation;
+const consent = commentConfig.consent;
+
+const envId = twikoo?.envId ?? "";
+const lang = twikoo?.lang ?? "zh-CN";
+const version = twikoo?.version ?? "1.6.44";
+// 用固定路径作为评论标识，避免标题/文件名变更导致历史评论找不到
+const path = `/posts/${post.slug}`;
+
+const repo = giscus?.repo ?? "";
+const repoId = giscus?.repoId ?? "";
+const category = giscus?.category ?? "";
+const categoryId = giscus?.categoryId ?? "";
+const loginTerm = giscus?.loginTerm ?? "giscus-login";
+const gLang = giscus?.lang ?? "zh-CN";
+const badge = giscus?.badgeText ?? "管理员";
+
+// 管理员名单：构建时从 Twikoo 后台同步下来的快照（scripts/build-giscus-theme.mjs 生成）
+let admins: { login: string; name?: string }[] = [];
+try {
+	const metaPath = new URL("../../public/giscus/meta.json", import.meta.url);
+	if (existsSync(metaPath)) {
+		const meta = JSON.parse(readFileSync(metaPath, "utf8"));
+		admins = Array.isArray(meta?.admins) ? meta.admins : [];
+	}
+} catch {
+	// 没同步过就只是没有徽章，不影响评论
+}
+
+const newDiscussionUrl =
+	`https://github.com/${repo}/discussions/new?category=${encodeURIComponent(category)}&title=${encodeURIComponent(loginTerm)}`;
+---
+
+<section
+	class="card-base p-6 mb-4"
+	id="hybrid-comment"
+	data-env-id={envId}
+	data-path={path}
+	data-lang={lang}
+	data-version={version}
+	data-repo={repo}
+	data-repo-id={repoId}
+	data-category={category}
+	data-category-id={categoryId}
+	data-term={loginTerm}
+	data-g-lang={gLang}
+	data-badge={badge}
+	data-admins={JSON.stringify(admins)}
+	data-consent-version={consent?.version ?? ""}
+	data-consent-title={consent?.title ?? "评论前请阅读"}
+	data-consent-agree={consent?.agree ?? "我已阅读并同意"}
+	data-consent-items={JSON.stringify(consent?.items ?? [])}
+	data-new-discussion={newDiscussionUrl}
+	data-gh-ok={repo && repoId && categoryId ? "1" : ""}
+>
+	<!-- GitHub 登录条 -->
+	<div class="hc-bar">
+		<div class="hc-bar__anon" id="hc-anon">
+			<span class="hc-bar__lead">发表评论需要先登录 GitHub 账号</span>
+			<button type="button" class="hc-btn hc-btn--primary" id="hc-login-btn">使用 GitHub 登录</button>
+		</div>
+		<div class="hc-bar__user" id="hc-user" hidden>
+			<img class="hc-bar__avatar" id="hc-avatar" alt="" width="28" height="28" />
+			<span class="hc-bar__name" id="hc-name"></span>
+			<span class="hc-bar__tag">已登录</span>
+			<button type="button" class="hc-btn hc-btn--ghost" id="hc-switch-btn">切换账号</button>
+			<button type="button" class="hc-btn hc-btn--ghost" id="hc-logout-btn">退出</button>
+		</div>
+	</div>
+
+	{
+		moderation?.reviewRequired && (
+			<p class="hc-notice">{moderation.notice ?? "评论提交后需经审核，通过后才会显示。"}</p>
+		)
+	}
+
+	<div id="hc-lock" class="hc-lock" hidden>
+		<p class="hc-lock__title">登录后即可评论</p>
+		<p class="hc-lock__desc">
+			评论会以你的 GitHub 昵称公开发布，并记录 IP 归属地与浏览器信息（用于展示来源、拦截垃圾评论）。
+		</p>
+		<button type="button" class="hc-btn hc-btn--primary" id="hc-lock-btn">使用 GitHub 登录</button>
+	</div>
+
+	<div id="tcomment">
+		<div class="hc-loading">评论加载中…</div>
+	</div>
+</section>
+
+<!-- GitHub 登录弹层 -->
+<div class="hc-modal" id="hc-gh-modal" hidden>
+	<div class="hc-modal__box">
+		<div class="hc-modal__head">
+			<h3 class="hc-modal__title">使用 GitHub 登录</h3>
+			<button type="button" class="hc-modal__x" id="hc-gh-close" aria-label="关闭">×</button>
+		</div>
+		<p class="hc-modal__desc">
+			在下面这块区域里点 <strong>Sign in with GitHub</strong>，授权完成后这个窗口会自动关闭。
+		</p>
+		<div class="hc-modal__frame" id="hc-giscus-host"></div>
+		<p class="hc-modal__hint" id="hc-gh-hint" hidden></p>
+	</div>
+</div>
+
+<!-- 用户须知 -->
+<div class="hc-modal" id="hc-consent-modal" hidden>
+	<div class="hc-modal__box">
+		<div class="hc-modal__head">
+			<h3 class="hc-modal__title" id="hc-consent-title"></h3>
+		</div>
+		<ul class="hc-modal__list" id="hc-consent-list"></ul>
+		<div class="hc-modal__actions">
+			<button type="button" class="hc-btn hc-btn--ghost" id="hc-consent-no">取消</button>
+			<button type="button" class="hc-btn hc-btn--primary" id="hc-consent-yes"></button>
+		</div>
+	</div>
+</div>
+
+<style is:global>
+	/* 全部选择器都以 #hybrid-comment / .hc- 开头，不会污染站点其它页面 */
+	#hybrid-comment .hc-bar {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		margin-bottom: 0.75rem;
+	}
+	#hybrid-comment .hc-bar__anon,
+	#hybrid-comment .hc-bar__user {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+	}
+	#hybrid-comment .hc-bar__lead,
+	#hybrid-comment .hc-bar__name {
+		font-size: 0.9rem;
+		color: var(--primary, #d946a6);
+	}
+	#hybrid-comment .hc-bar__name {
+		font-weight: 600;
+	}
+	#hybrid-comment .hc-bar__avatar {
+		width: 28px;
+		height: 28px;
+		border-radius: 999px;
+		flex: none;
+	}
+	#hybrid-comment .hc-bar__tag {
+		font-size: 11px;
+		line-height: 18px;
+		padding: 0 6px;
+		border-radius: 999px;
+		background: rgba(217, 70, 166, 0.12);
+		border: 1px solid rgba(217, 70, 166, 0.35);
+		color: var(--primary, #d946a6);
+	}
+	#hybrid-comment .hc-notice {
+		margin-bottom: 0.75rem;
+		font-size: 0.85rem;
+		color: rgba(0, 0, 0, 0.4);
+	}
+	:global(html.dark) #hybrid-comment .hc-notice {
+		color: rgba(255, 255, 255, 0.4);
+	}
+	#hybrid-comment .hc-loading {
+		padding: 8px 0;
+		font-size: 14px;
+		color: #999;
+	}
+	#hybrid-comment .hc-lock {
+		border: 1px dashed rgba(217, 70, 166, 0.4);
+		border-radius: 0.75rem;
+		padding: 1rem;
+		text-align: center;
+		margin-bottom: 1rem;
+	}
+	#hybrid-comment .hc-lock__title {
+		font-weight: 600;
+		margin: 0 0 0.35rem;
+	}
+	#hybrid-comment .hc-lock__desc {
+		font-size: 0.8rem;
+		line-height: 1.7;
+		margin: 0 0 0.75rem;
+		color: rgba(0, 0, 0, 0.5);
+	}
+	:global(html.dark) #hybrid-comment .hc-lock__desc {
+		color: rgba(255, 255, 255, 0.5);
+	}
+	/* 未登录时把 Twikoo 的输入框整块藏掉，只留评论列表。
+	   注意：twikoo.init 会把 #tcomment 整个替换掉，所以不能依赖 #tcomment 做祖先选择器 */
+	#hybrid-comment.hc-locked .tk-submit {
+		display: none !important;
+	}
+	/* 管理员徽章（后台管理员名单匹配 GitHub 昵称） */
+	#hybrid-comment .hc-badge {
+		display: inline-block;
+		margin-left: 6px;
+		padding: 0 6px;
+		height: 18px;
+		line-height: 16px;
+		font-size: 11px;
+		font-weight: 600;
+		letter-spacing: 0.02em;
+		border-radius: 999px;
+		vertical-align: middle;
+		white-space: nowrap;
+		background: #fdf2f8;
+		border: 1px solid #f7b6d2;
+		color: #be185d;
+	}
+	:global(html.dark) #hybrid-comment .hc-badge {
+		background: #3d1528;
+		border-color: #9d174d;
+		color: #f9a8d4;
+	}
+	/* 弹层 */
+	.hc-modal {
+		position: fixed;
+		inset: 0;
+		z-index: 999;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 1rem;
+		background: rgba(0, 0, 0, 0.45);
+	}
+	.hc-modal[hidden] {
+		display: none;
+	}
+	.hc-modal__box {
+		width: min(520px, 100%);
+		max-height: 88vh;
+		overflow: auto;
+		background: #fff;
+		border-radius: 1rem;
+		padding: 1.25rem;
+		box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+	}
+	:global(html.dark) .hc-modal__box {
+		background: #1c1c1f;
+		color: #e8e8e8;
+	}
+	.hc-modal__head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
+	}
+	.hc-modal__title {
+		margin: 0;
+		font-size: 1.05rem;
+		font-weight: 700;
+	}
+	.hc-modal__x {
+		border: 0;
+		background: transparent;
+		font-size: 1.5rem;
+		line-height: 1;
+		cursor: pointer;
+		color: inherit;
+	}
+	.hc-modal__desc,
+	.hc-modal__hint {
+		font-size: 0.85rem;
+		line-height: 1.75;
+		margin: 0.6rem 0 0;
+		color: rgba(0, 0, 0, 0.6);
+	}
+	:global(html.dark) .hc-modal__desc,
+	:global(html.dark) .hc-modal__hint {
+		color: rgba(255, 255, 255, 0.6);
+	}
+	.hc-modal__hint {
+		color: #b45309;
+	}
+	.hc-modal__frame {
+		margin-top: 0.75rem;
+		min-height: 220px;
+	}
+	.hc-modal__list {
+		margin: 0.75rem 0 0;
+		padding-left: 1.15rem;
+		font-size: 0.85rem;
+		line-height: 1.85;
+	}
+	.hc-modal__actions {
+		display: flex;
+		justify-content: flex-end;
+		gap: 0.5rem;
+		margin-top: 1rem;
+	}
+	.hc-btn {
+		cursor: pointer;
+		border-radius: 999px;
+		font-size: 0.8rem;
+		padding: 0.35rem 0.9rem;
+		border: 1px solid transparent;
+		line-height: 1.6;
+	}
+	.hc-btn--primary {
+		background: var(--primary, #d946a6);
+		color: #fff;
+		border-color: var(--primary, #d946a6);
+	}
+	.hc-btn--ghost {
+		background: transparent;
+		color: inherit;
+		border-color: rgba(0, 0, 0, 0.2);
+	}
+	:global(html.dark) .hc-btn--ghost {
+		border-color: rgba(255, 255, 255, 0.25);
+	}
+</style>
+
+<script>
+	type TwikooGlobal = { init: (options: Record<string, unknown>) => Promise<void> | void };
+
+	const ID_KEY = "gh_identity_v1";
+	const CONSENT_KEY = "comment_consent_v1";
+	const META_KEY = "twikoo";
+
+	// 主 CDN 挂了就换下一个，避免整块评论区空白
+	const CDN_TEMPLATES = [
+		(v: string) => `https://cdn.staticfile.org/twikoo/${v}/twikoo.all.min.js`,
+		(v: string) => `https://cdn.jsdelivr.net/npm/twikoo@${v}/dist/twikoo.all.min.js`,
+		(v: string) => `https://unpkg.com/twikoo@${v}/dist/twikoo.all.min.js`,
+	];
+
+	type Identity = { login: string; avatarUrl: string; url: string } | null;
+
+	function boot(wrap: HTMLElement) {
+		const anon = wrap.querySelector<HTMLElement>("#hc-anon");
+		const userBox = wrap.querySelector<HTMLElement>("#hc-user");
+		const avatarEl = wrap.querySelector<HTMLImageElement>("#hc-avatar");
+		const nameEl = wrap.querySelector<HTMLElement>("#hc-name");
+		const lockBox = wrap.querySelector<HTMLElement>("#hc-lock");
+		const ghModal = document.getElementById("hc-gh-modal");
+		const ghHost = document.getElementById("hc-giscus-host");
+		const ghHint = document.getElementById("hc-gh-hint");
+		const consentModal = document.getElementById("hc-consent-modal");
+
+		let admins: { login: string; name?: string }[] = [];
+		try {
+			admins = JSON.parse(wrap.dataset.admins || "[]");
+		} catch {
+			admins = [];
+		}
+		const adminSet = new Set(admins.map((a) => String(a.login || "").toLowerCase()).filter(Boolean));
+		const badgeText = wrap.dataset.badge || "管理员";
+
+		let identity: Identity = null;
+		try {
+			identity = JSON.parse(localStorage.getItem(ID_KEY) || "null");
+		} catch {
+			identity = null;
+		}
+
+		// ---------- 身份 ----------
+		function mailOf(login: string) {
+			return `${login}@users.noreply.github.com`;
+		}
+
+		// Twikoo 会把 localStorage["twikoo"] 里的 nick/mail/avatar 读进表单并随评论提交
+		function writeTwikooMeta() {
+			if (!identity) return;
+			try {
+				localStorage.setItem(
+					META_KEY,
+					JSON.stringify({
+						nick: identity.login,
+						mail: mailOf(identity.login),
+						avatar: identity.avatarUrl || "",
+						link: identity.url || `https://github.com/${identity.login}`,
+					}),
+				);
+			} catch {
+				/* 隐私模式下写不了就算了 */
+			}
+		}
+
+		function renderBar() {
+			if (!anon || !userBox || !lockBox || !nameEl) return;
+			if (identity) {
+				anon.hidden = true;
+				userBox.hidden = false;
+				lockBox.hidden = true;
+				nameEl.textContent = identity.login;
+				if (avatarEl) {
+					avatarEl.src = identity.avatarUrl || "";
+					avatarEl.alt = identity.login;
+				}
+				wrap.classList.remove("hc-locked");
+			} else {
+				anon.hidden = false;
+				userBox.hidden = true;
+				lockBox.hidden = false;
+				wrap.classList.add("hc-locked");
+			}
+		}
+
+		function setIdentity(next: Identity) {
+			identity = next;
+			if (next) localStorage.setItem(ID_KEY, JSON.stringify(next));
+			else localStorage.removeItem(ID_KEY);
+			writeTwikooMeta();
+			renderBar();
+			syncEditor();
+		}
+
+		// Twikoo 官方前端会在 init 时把 #tcomment 整个替换掉（新节点不再带这个 id），
+		// 所以一切都从不会被替换的 wrap 上找，否则观察器会挂在一个已移除的节点上。
+		const scopeRoot = () => wrap;
+
+		// ---------- Twikoo 表单同步 ----------
+		function syncEditor() {
+			const root = scopeRoot();
+			if (!root) return;
+			// 登录后把昵称/邮箱/网址填成 GitHub 身份并锁住，避免访客乱填冒充
+			if (identity) {
+				const inputs = root.querySelectorAll<HTMLInputElement>(".tk-meta-input input");
+				inputs.forEach((inp) => {
+					const key = (inp.getAttribute("name") || inp.getAttribute("placeholder") || "").toLowerCase();
+					let value: string | null = null;
+					if (key.includes("nick") || key.includes("昵称")) value = identity!.login;
+					else if (key.includes("mail") || key.includes("邮箱")) value = mailOf(identity!.login);
+					else if (key.includes("link") || key.includes("网址")) value = identity!.url || `https://github.com/${identity!.login}`;
+					if (value != null && inp.value !== value) {
+						inp.value = value;
+						inp.dispatchEvent(new Event("input", { bubbles: true }));
+					}
+					inp.readOnly = true;
+				});
+			}
+			injectBadges();
+		}
+
+		function injectBadges() {
+			const root = scopeRoot();
+			if (!root || !adminSet.size) return;
+			root.querySelectorAll<HTMLElement>(".tk-comment").forEach((el) => {
+				if (el.dataset.hcBadge) return;
+				el.dataset.hcBadge = "1";
+				// Twikoo 自己会给 master 评论加 .tk-tag，别重复挂
+				if (el.querySelector(".tk-tag")) return;
+				const nickEl = el.querySelector<HTMLElement>(".tk-nick, .tk-nick-link");
+				const nick = (nickEl?.textContent || "").trim().toLowerCase();
+				if (!nick || !adminSet.has(nick)) return;
+				const span = document.createElement("span");
+				span.className = "hc-badge";
+				span.textContent = badgeText;
+				(nickEl?.parentNode || el).appendChild(span);
+			});
+		}
+
+		// Vue 会反复重绘评论区，观察器必须挂在不会被替换的 wrap 上
+		let timer: number | undefined;
+		const schedule = () => {
+			if (timer) window.clearTimeout(timer);
+			timer = window.setTimeout(syncEditor, 120);
+		};
+		new MutationObserver(schedule).observe(wrap, { childList: true, subtree: true });
+
+		// ---------- 用户须知 ----------
+		const consentVersion = wrap.dataset.consentVersion || "";
+		const agreed = () => !consentVersion || localStorage.getItem(CONSENT_KEY) === consentVersion;
+		let pendingSend: HTMLElement | null = null;
+
+		function showConsent(btn: HTMLElement) {
+			pendingSend = btn;
+			if (!consentModal) return;
+			const titleEl = document.getElementById("hc-consent-title");
+			const listEl = document.getElementById("hc-consent-list");
+			const yesEl = document.getElementById("hc-consent-yes");
+			if (titleEl) titleEl.textContent = wrap.dataset.consentTitle || "评论前请阅读";
+			if (yesEl) yesEl.textContent = wrap.dataset.consentAgree || "我已阅读并同意";
+			if (listEl) {
+				let items: string[] = [];
+				try {
+					items = JSON.parse(wrap.dataset.consentItems || "[]");
+				} catch {
+					items = [];
+				}
+				listEl.replaceChildren(
+					...items.map((t) => {
+						const li = document.createElement("li");
+						li.textContent = t;
+						return li;
+					}),
+				);
+			}
+			consentModal.hidden = false;
+		}
+
+		document.getElementById("hc-consent-no")?.addEventListener("click", () => {
+			if (consentModal) consentModal.hidden = true;
+			pendingSend = null;
+		});
+		document.getElementById("hc-consent-yes")?.addEventListener("click", () => {
+			localStorage.setItem(CONSENT_KEY, consentVersion);
+			if (consentModal) consentModal.hidden = true;
+			const btn = pendingSend;
+			pendingSend = null;
+			if (btn) window.setTimeout(() => btn.click(), 50);
+		});
+
+		// 发送前拦一次（捕获阶段，抢在 Vue 的 handler 之前；挂在 wrap 上才不会因为节点被替换而失效）
+		wrap.addEventListener(
+			"click",
+			(e) => {
+				const target = e.target as HTMLElement | null;
+				const btn = target?.closest?.(".tk-send") as HTMLElement | null;
+				if (!btn) return;
+				if (agreed()) return;
+				e.preventDefault();
+				e.stopPropagation();
+				showConsent(btn);
+			},
+			true,
+		);
+
+		// ---------- giscus 登录 ----------
+		let giscusLoaded = false;
+		function loadGiscus() {
+			if (giscusLoaded || !ghHost) return;
+			giscusLoaded = true;
+			const s = document.createElement("script");
+			s.src = "https://giscus.app/client.js";
+			const attrs: Record<string, string> = {
+				"data-repo": wrap.dataset.repo || "",
+				"data-repo-id": wrap.dataset.repoId || "",
+				"data-category": wrap.dataset.category || "",
+				"data-category-id": wrap.dataset.categoryId || "",
+				// 固定指向专门用来登录的帖子，保证任何页面都能拿到登录者身份
+				"data-mapping": "specific",
+				"data-term": wrap.dataset.term || "giscus-login",
+				"data-strict": "1",
+				"data-reactions-enabled": "0",
+				"data-emit-metadata": "1",
+				"data-input-position": "top",
+				"data-theme": document.documentElement.classList.contains("dark") ? "dark" : "light",
+				"data-lang": wrap.dataset.gLang || "zh-CN",
+				"data-loading": "lazy",
+			};
+			for (const [k, v] of Object.entries(attrs)) s.setAttribute(k, v);
+			s.crossOrigin = "anonymous";
+			s.async = true;
+			ghHost.appendChild(s);
+
+			// 迟迟收不到身份多半是那个登录帖还没建，给个能直接点的链接
+			window.setTimeout(() => {
+				if (identity || !ghHint) return;
+				const url = wrap.dataset.newDiscussion || "";
+				ghHint.hidden = false;
+				ghHint.textContent = url
+					? `没看到登录入口？多半是仓库里还没有标题为「${wrap.dataset.term}」的帖子，点这里创建后重试：${url}`
+					: "没看到登录入口？请检查 giscus 仓库配置。";
+			}, 9000);
+		}
+
+		function openGhModal() {
+			if (!ghModal) return;
+			ghModal.hidden = false;
+			loadGiscus();
+		}
+		function closeGhModal() {
+			if (ghModal) ghModal.hidden = true;
+		}
+
+		document.getElementById("hc-login-btn")?.addEventListener("click", openGhModal);
+		document.getElementById("hc-lock-btn")?.addEventListener("click", openGhModal);
+		document.getElementById("hc-switch-btn")?.addEventListener("click", openGhModal);
+		document.getElementById("hc-gh-close")?.addEventListener("click", closeGhModal);
+		ghModal?.addEventListener("click", (e) => {
+			if (e.target === ghModal) closeGhModal();
+		});
+		document.getElementById("hc-logout-btn")?.addEventListener("click", () => {
+			setIdentity(null);
+			if (ghHost) ghHost.replaceChildren();
+			giscusLoaded = false;
+		});
+
+		window.addEventListener("message", (event) => {
+			if (event.origin !== "https://giscus.app") return;
+			const data = (event.data && event.data.giscus) as
+				| { viewer?: { login?: string; avatarUrl?: string; url?: string }; signOut?: boolean; error?: string }
+				| undefined;
+			if (!data) return;
+			if (data.signOut) {
+				setIdentity(null);
+				return;
+			}
+			if (data.viewer && data.viewer.login) {
+				setIdentity({
+					login: data.viewer.login,
+					avatarUrl: data.viewer.avatarUrl || "",
+					url: data.viewer.url || `https://github.com/${data.viewer.login}`,
+				});
+				closeGhModal();
+			}
+		});
+
+		// ---------- Twikoo ----------
+		let reported = false;
+		function renderMessage(text: string) {
+			// Twikoo 可能已经把 #tcomment 换掉了，所以统一往 wrap 末尾追加提示
+			if (reported) return;
+			reported = true;
+			const box = document.createElement("div");
+			box.style.cssText = "padding:8px 0;color:#888;font-size:14px;line-height:1.8;";
+			box.textContent = text;
+			wrap.appendChild(box);
+		}
+
+		let started = false;
+		const version = wrap.dataset.version || "1.6.44";
+
+		function mount(): boolean {
+			const tk = (window as unknown as { twikoo?: TwikooGlobal }).twikoo;
+			if (!tk) return false;
+			const id = wrap.dataset.envId || "";
+			if (!/^https?:\/\//i.test(id)) {
+				renderMessage(`评论后端地址无效：「${id || "(空)"}」。请把 src/config.ts 里 twikoo.envId 设成完整的 http(s) 地址。`);
+				return true;
+			}
+			try {
+				const ret = tk.init({
+					envId: id,
+					el: "#tcomment",
+					path: wrap.dataset.path || location.pathname,
+					lang: wrap.dataset.lang || "zh-CN",
+				});
+				if (ret && typeof (ret as Promise<void>).catch === "function") {
+					(ret as Promise<void>).catch((e) => {
+						console.error("[twikoo] 评论加载失败", e);
+						renderMessage(`评论加载失败：${e instanceof Error ? e.message : String(e)}`);
+					});
+				}
+			} catch (e) {
+				console.error("[twikoo] 评论加载失败", e);
+				renderMessage(`评论加载失败：${e instanceof Error ? e.message : String(e)}`);
+			}
+			return true;
+		}
+
+		function loadScript(index: number) {
+			if (index >= CDN_TEMPLATES.length) {
+				renderMessage("评论组件（Twikoo）加载失败，请检查网络或 CDN 是否可访问。");
+				return;
+			}
+			const script = document.createElement("script");
+			script.src = CDN_TEMPLATES[index](version);
+			script.async = true;
+			script.onload = () => {
+				if (!mount()) loadScript(index + 1);
+			};
+			script.onerror = () => {
+				script.remove();
+				loadScript(index + 1);
+			};
+			document.head.appendChild(script);
+		}
+
+		writeTwikooMeta();
+		renderBar();
+		if (!started) {
+			started = true;
+			if (!mount()) loadScript(0);
+		}
+	}
+
+	const wrap = document.getElementById("hybrid-comment");
+	if (wrap) {
+		if (document.readyState === "loading") {
+			document.addEventListener("DOMContentLoaded", () => boot(wrap), { once: true });
+		} else {
+			boot(wrap);
+		}
+	}
+</script>

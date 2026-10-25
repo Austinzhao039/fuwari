@@ -4,22 +4,25 @@ import { commentConfig } from "@/config";
 import Artalk from "./Artalk.astro";
 import Giscus from "./Giscus.astro";
 import TwikooComment from "./TwikooComment.astro";
+import TwikooGiscus from "./TwikooGiscus.astro";
 
 interface Props {
 	post: CollectionEntry<"posts">;
 }
 
 const { post } = Astro.props;
-// provider 在 src/config.ts 里切换（也可用环境变量 COMMENT_PROVIDER=artalk）
-const provider = commentConfig.provider ?? "giscus";
+// provider 在 src/config.ts 里切换（也可用环境变量 COMMENT_PROVIDER=artalk 等覆盖）
+const provider = commentConfig.provider ?? "twikoo-giscus";
 ---
 
 {
 	provider === "artalk" ? (
 		<Artalk post={post} />
+	) : provider === "giscus" ? (
+		<Giscus />
 	) : provider === "twikoo" ? (
 		<TwikooComment post={post} />
 	) : (
-		<Giscus />
+		<TwikooGiscus post={post} />
 	)
 }

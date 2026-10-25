@@ -68,10 +68,16 @@ const FORBIDDEN_WORDS = [
 // 命中后「直接拒绝提交」的词：只放最明确、几乎不可能出现在正常技术讨论里的
 const BLOCKED_WORDS = ["代开发票", "办假证", "时时彩", "六合彩", "裸聊", "约炮"];
 
+// SHOW_REGION / SHOW_UA：Twikoo 后台自带，匿名拉评论就会返回 ipRegion / os / browser，
+// 前端直接渲染成「上海 · Chrome 141 / Windows 10」。不开归属地就只有浏览器信息。
+// MASTER_TAG：站长评论上那枚标签的文案。
 const DESIRED = {
 	AKISMET_KEY: "MANUAL_REVIEW",
 	FORBIDDEN_WORDS: FORBIDDEN_WORDS.join(","),
 	BLOCKED_WORDS: BLOCKED_WORDS.join(","),
+	SHOW_REGION: "true",
+	SHOW_UA: "true",
+	MASTER_TAG: "管理员",
 };
 
 if (!PASSWORD) {
@@ -126,6 +132,9 @@ console.log("当前配置：", {
 	AKISMET_KEY: before.config?.AKISMET_KEY ?? "(空)",
 	FORBIDDEN_WORDS: before.config?.FORBIDDEN_WORDS ?? "(空)",
 	BLOCKED_WORDS: before.config?.BLOCKED_WORDS ?? "(空)",
+	SHOW_REGION: before.config?.SHOW_REGION ?? "(空)",
+	SHOW_UA: before.config?.SHOW_UA ?? "(空)",
+	MASTER_TAG: before.config?.MASTER_TAG ?? "(空)",
 });
 
 // 可选：顺手改管理密码
@@ -156,13 +165,18 @@ if (after.code !== 0) fail("回读配置", after);
 const ok =
 	after.config.AKISMET_KEY === DESIRED.AKISMET_KEY &&
 	after.config.FORBIDDEN_WORDS === DESIRED.FORBIDDEN_WORDS &&
-	after.config.BLOCKED_WORDS === DESIRED.BLOCKED_WORDS;
+	after.config.BLOCKED_WORDS === DESIRED.BLOCKED_WORDS &&
+	after.config.SHOW_REGION === DESIRED.SHOW_REGION &&
+	after.config.SHOW_UA === DESIRED.SHOW_UA;
 
 console.log("✓ 已写入配置");
 console.log("回读校验：", {
 	AKISMET_KEY: after.config.AKISMET_KEY,
 	违禁词数量: String(after.config.FORBIDDEN_WORDS || "").split(",").filter(Boolean).length,
 	硬拦词数量: String(after.config.BLOCKED_WORDS || "").split(",").filter(Boolean).length,
+	SHOW_REGION: after.config.SHOW_REGION,
+	SHOW_UA: after.config.SHOW_UA,
+	MASTER_TAG: after.config.MASTER_TAG,
 });
-console.log(ok ? "✓ 校验通过：审核已开启，违禁词已生效" : "⚠ 回读结果与预期不一致，请到后台手动确认");
+console.log(ok ? "✓ 校验通过：审核已开启，违禁词已生效，归属地与浏览器信息已打开" : "⚠ 回读结果与预期不一致，请到后台手动确认");
 process.exit(ok ? 0 : 2);

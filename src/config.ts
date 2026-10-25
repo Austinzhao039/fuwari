@@ -101,14 +101,21 @@ const twikooEnvId = /^https?:\/\/\S+$/i.test(twikooEnvOverride ?? "")
 	? (twikooEnvOverride as string)
 	: DEFAULT_TWIKOO_ENV_ID;
 
-// twikoo | giscus | artalk
-// - giscus：GitHub 官方 OAuth，必须登录才能评论；但拿不到访客 IP/UA，也塞不进同意书
-// - artalk：自建（deploy/artalk/），GitHub OAuth + IP 属地 + 浏览器信息 + 同意书全部支持
-// - twikoo：最早的自建方案，只有昵称/邮箱表单
-// 后端部署好之前保持 giscus，避免评论区空窗；部署完用 COMMENT_PROVIDER=artalk 构建即可。
+// twikoo-giscus | twikoo | giscus | artalk
+// - twikoo-giscus（默认）：giscus 只用来做 GitHub 登录，评论正文写进自建 Twikoo。
+//   这样既有「必须用 GitHub 账号」，又保住 Twikoo 自带的 IP 属地 / 浏览器信息 / 审核 / 违禁词，
+//   服务端不用再部署 Artalk 之类的新东西。
+// - giscus：评论直接存 GitHub Discussions，拿不到访客 IP/UA，也塞不进同意书
+// - artalk：自建（deploy/artalk/），功能最全但要额外跑一个 Go 后端
+// - twikoo：纯 Twikoo，昵称邮箱手填，不需要 GitHub 登录
 const providerEnv = envBag?.COMMENT_PROVIDER;
-const commentProvider: "twikoo" | "giscus" | "artalk" =
-	providerEnv === "artalk" || providerEnv === "twikoo" ? providerEnv : "giscus";
+const commentProvider: "twikoo" | "twikoo-giscus" | "giscus" | "artalk" =
+	providerEnv === "artalk" ||
+	providerEnv === "twikoo" ||
+	providerEnv === "giscus" ||
+	providerEnv === "twikoo-giscus"
+		? providerEnv
+		: "twikoo-giscus";
 
 // 本地联调时可指向 http://127.0.0.1:23366
 const artalkServer = (envBag?.ARTALK_SERVER || "https://www.austin666.top/comments-api").replace(/\/+$/, "");
@@ -139,6 +146,10 @@ export const commentConfig: CommentConfig = {
 		// 所以走 jsDelivr 镜像仓库里的同一份文件（ACAO: *）。
 		themeBase: "https://cdn.jsdelivr.net/gh/Austinzhao039/fuwari@main/public/giscus",
 		badgeText: "管理员",
+		// twikoo-giscus 模式下，登录用的 giscus 固定指向这个标题的帖子。
+		// 需要在仓库 Discussions 里建一个同名帖子（一次性）：
+		// https://github.com/Austinzhao039/fuwari/discussions/new?category=Announcements&title=giscus-login
+		loginTerm: "giscus-login",
 	},
 	moderation: {
 		// 与后台 AKISMET_KEY=MANUAL_REVIEW 对应：开了审核就置 true，前端会提示访客

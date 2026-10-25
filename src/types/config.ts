@@ -103,8 +103,14 @@ export type BlogPostData = {
 };
 
 export type CommentConfig = {
-	/** 用哪套评论：twikoo = 自建后端；giscus = GitHub Discussions（必须登录才能评论） */
-	provider?: "twikoo" | "giscus" | "artalk";
+	/**
+	 * 用哪套评论：
+	 *   - twikoo-giscus：GitHub 登录（giscus 提供身份）+ 评论存自建 Twikoo（推荐，服务端只需 Twikoo）
+	 *   - twikoo：纯 Twikoo，昵称邮箱手填
+	 *   - giscus：评论直接存 GitHub Discussions
+	 *   - artalk：自建 Artalk（功能最全，但要额外部署一个 Go 后端）
+	 */
+	provider?: "twikoo" | "twikoo-giscus" | "giscus" | "artalk";
 	twikoo?: TwikooConfig;
 	giscus?: GiscusConfig;
 	artalk?: ArtalkConfig;
@@ -156,6 +162,13 @@ type GiscusConfig = {
 	themeBase?: string;
 	// 管理员徽章文案（不填则用「管理员」）
 	badgeText?: string;
+	/**
+	 * 「giscus 登录」模式的专用帖标题。
+	 * giscus 只在 discussion 已存在时才会把登录者身份抛给父页面（见 giscus 源码
+	 * components/Giscus.tsx：!data.discussion.id 时直接 return）。
+	 * 所以这里固定指向一个专门的帖子，保证任何页面都能拿到登录态。
+	 */
+	loginTerm?: string;
 };
 
 export type ExpressiveCodeConfig = {
