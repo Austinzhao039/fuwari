@@ -1,0 +1,1059 @@
+---
+import { commentConfig, siteConfig } from "@/config";
+
+const twikoo = commentConfig.twikoo;
+const envId = twikoo?.envId ?? "";
+const version = twikoo?.version ?? "1.6.44";
+const giscus = commentConfig.giscus;
+const giscusReady = Boolean(giscus?.categoryId);
+---
+
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<meta name="robots" content="noindex, nofollow" />
+		<title>评论管理 · {siteConfig.title}</title>
+		<link rel="stylesheet" href="/admin.css" />
+	</head>
+
+	<body
+		data-endpoint={envId}
+		data-version={version}
+		data-giscus-ready={giscusReady ? "1" : "0"}
+		data-giscus-repo={giscus?.repo ?? ""}
+	>
+		<!-- ===== 登录层 ===== -->
+		<div class="login-mask" id="loginMask" hidden>
+			<form class="login-card" id="loginForm" autocomplete="off">
+				<h2>评论管理 · 登录</h2>
+				<p>Twikoo 后台需要管理密码，登录状态只在本次标签页有效。</p>
+				<input id="loginPassword" type="password" placeholder="管理密码" aria-label="管理密码" required />
+				<div class="login-actions">
+					<button class="btn btn-primary btn-sm" type="submit" id="loginBtn">登录</button>
+					<a class="btn btn-ghost btn-sm" href="/">返回博客</a>
+				</div>
+				<p class="login-error" id="loginError"></p>
+			</form>
+		</div>
+
+		<!-- ===== 顶栏 ===== -->
+		<header class="topbar">
+			<p class="brand">
+				<span class="brand-mark" aria-hidden="true">Tk</span>
+				<span class="brand-text">
+					<strong>评论管理</strong>
+					<small>Twikoo · Fuwari Admin</small>
+				</span>
+			</p>
+			<p class="topbar-actions">
+				<button class="icon-btn" id="themeToggle" type="button" aria-label="切换明暗主题">◐</button>
+				<button class="btn btn-ghost btn-sm" id="refreshBtn" type="button">刷新</button>
+				<button class="btn btn-ghost btn-sm" id="exportBtn" type="button">导出 JSON</button>
+				<button class="btn btn-ghost btn-sm logout-btn" id="logoutBtn" type="button" hidden>退出登录</button>
+			</p>
+		</header>
+
+		<!-- ===== 视图切换 ===== -->
+		<nav class="view-tabs" aria-label="视图切换">
+			<button class="view-tab active" data-view="dashboard" type="button">仪表盘</button>
+			<button class="view-tab" data-view="comments" type="button">评论管理</button>
+			<button class="view-tab" data-view="users" type="button">用户管理</button>
+			<button class="view-tab" data-view="automation" type="button">自动化规则</button>
+			<button class="view-tab" data-view="github" type="button">GitHub 集成</button>
+			<button class="view-tab" data-view="settings" type="button">审核设置</button>
+			<button class="view-tab" data-view="logs" type="button">审计日志</button>
+		</nav>
+
+		<main>
+			<!-- ===== 仪表盘 ===== -->
+			<section class="view-panel active" id="view-dashboard" aria-label="仪表盘">
+				<ul class="stats" id="stats"></ul>
+
+				<section class="chart-grid" aria-label="数据概览">
+					<article class="card chart-card">
+						<h2 class="section-title">📊 评论最多页面</h2>
+						<ul class="bar-list" id="topPages"></ul>
+					</article>
+					<article class="card chart-card">
+						<h2 class="section-title">👤 活跃用户 Top 5</h2>
+						<ul class="bar-list" id="topUsers"></ul>
+					</article>
+				</section>
+
+				<article class="card todo-card">
+					<h2 class="section-title">⚡ 待处理事项</h2>
+					<ul class="todo-list" id="todoList"></ul>
+				</article>
+			</section>
+
+			<!-- ===== 评论管理 ===== -->
+			<section class="view-panel" id="view-comments" aria-label="评论管理">
+				<search class="card toolbar" aria-label="筛选与批量操作">
+					<span class="search-box">
+						<input id="searchInput" type="search" placeholder="搜索昵称、内容或页面路径…" aria-label="搜索评论" />
+					</span>
+					<fieldset class="filter-group" id="filterGroup">
+						<legend class="sr-only">按状态筛选</legend>
+						<button class="chip active" data-filter="all" type="button">全部<span class="chip-count" id="cntAll"></span></button>
+						<button class="chip" data-filter="visible" type="button">已通过<span class="chip-count" id="cntVisible"></span></button>
+						<button class="chip" data-filter="pending" type="button">待审核<span class="chip-count" id="cntPending"></span></button>
+					</fieldset>
+					<fieldset class="bulk-bar">
+						<legend class="sr-only">批量操作</legend>
+						<button class="btn btn-success btn-sm" id="bulkApprove" type="button">批量通过</button>
+						<button class="btn btn-ghost btn-sm" id="bulkHide" type="button">批量隐藏</button>
+						<button class="btn btn-danger btn-sm" id="bulkDelete" type="button">批量删除</button>
+					</fieldset>
+				</search>
+				<ol class="comment-list" id="commentList"></ol>
+				<div class="pager" id="pager"></div>
+			</section>
+
+			<!-- ===== 用户管理 ===== -->
+			<section class="view-panel" id="view-users" aria-label="用户管理">
+				<search class="card toolbar" aria-label="用户筛选">
+					<span class="search-box">
+						<input id="userSearch" type="search" placeholder="搜索昵称、邮箱 MD5 或 IP…" aria-label="搜索用户" />
+					</span>
+					<fieldset class="filter-group">
+						<legend class="sr-only">用户状态筛选</legend>
+						<button class="chip active" data-user-filter="all" type="button">全部用户</button>
+						<button class="chip" data-user-filter="spammy" type="button">有待审评论</button>
+					</fieldset>
+				</search>
+				<ul class="user-list" id="userList"></ul>
+			</section>
+
+			<!-- ===== 自动化规则 ===== -->
+			<section class="view-panel" id="view-automation" aria-label="自动化规则">
+				<header class="card section-head">
+					<h2 class="section-title">自动化规则</h2>
+					<p class="section-desc">以下规则由 Twikoo 服务端执行，改动会直接写入后端配置</p>
+				</header>
+				<ul class="rule-list" id="ruleList"></ul>
+			</section>
+
+			<!-- ===== GitHub 集成 ===== -->
+			<section class="view-panel" id="view-github" aria-label="GitHub 集成">
+				<article class="card gh-card">
+					<span class="gh-icon" aria-hidden="true">⌂</span>
+					<section class="gh-body" aria-label="GitHub 连接状态">
+						<h2 class="gh-name">GitHub 账号评论（giscus）</h2>
+						<p class="gh-desc" id="ghStatusText"></p>
+					</section>
+				</article>
+
+				<article class="card setting-group">
+					<fieldset>
+						<legend class="section-title">接入步骤</legend>
+						<p class="section-desc">
+							浏览器里没法替你完成 GitHub 授权，这两步需要你亲自点。完成后评论迁移到 Discussions，
+							只有登录 GitHub 的人才能发言。
+						</p>
+						<ol class="gh-steps">
+							<li>仓库 <code id="ghRepoName"></code> → Settings → General → Features → 勾选 <b>Discussions</b></li>
+							<li>
+								安装 giscus App：
+								<a href="https://github.com/apps/giscus/installations/new" target="_blank" rel="noopener">
+									github.com/apps/giscus/installations/new
+								</a>
+								（只勾这个仓库）
+							</li>
+							<li>把 giscus.app 给出的 <b>categoryId</b> 填进 <code>src/config.ts</code>，重新构建即切换</li>
+						</ol>
+						<p class="section-desc" id="ghStateNote"></p>
+					</fieldset>
+				</article>
+			</section>
+
+			<!-- ===== 审核设置 ===== -->
+			<section class="view-panel" id="view-settings" aria-label="审核设置">
+				<form class="settings-grid" id="settingsForm">
+					<fieldset class="card setting-group">
+						<legend class="section-title">🛡 审核模式</legend>
+						<p class="setting-row">
+							<span class="label-desc">
+								<span>人工审核</span>
+								<small>新评论默认进入待审核，通过后才公开</small>
+							</span>
+							<label class="switch">
+								<input type="checkbox" id="setManualReview" role="switch" aria-label="人工审核" />
+								<span class="switch-track" aria-hidden="true"></span>
+							</label>
+						</p>
+						<p class="setting-row">
+							<span class="label-desc">
+								<span>当前状态</span>
+								<small id="reviewStateText">—</small>
+							</span>
+						</p>
+					</fieldset>
+
+					<fieldset class="card setting-group">
+						<legend class="section-title">⏱ 频率与长度</legend>
+						<p class="setting-row">
+							<span class="label-desc">
+								<label for="setRateLimit">同一 IP 10 分钟上限</label>
+								<small>0 表示不限制</small>
+							</span>
+							<input class="setting-input num" id="setRateLimit" type="number" min="0" max="100" />
+						</p>
+						<p class="setting-row">
+							<span class="label-desc">
+								<label for="setMaxLength">评论最长长度</label>
+								<small>0 表示不限制</small>
+							</span>
+							<input class="setting-input num" id="setMaxLength" type="number" min="0" max="20000" />
+						</p>
+					</fieldset>
+
+					<fieldset class="card setting-group full">
+						<legend class="section-title">🚫 违禁词</legend>
+						<p class="section-desc">命中后<b>静默标记为垃圾</b>（进待审队列，访客看不到，对方也不会收到提示）</p>
+						<ul class="tag-input-wrap" id="forbiddenTags"></ul>
+					</fieldset>
+
+					<fieldset class="card setting-group full">
+						<legend class="section-title">⛔ 屏蔽词</legend>
+						<p class="section-desc">命中后<b>直接提交失败</b>，会提示「包含屏蔽词」（容易被试探，建议只放最明显的）</p>
+						<ul class="tag-input-wrap" id="blockedTags"></ul>
+					</fieldset>
+
+					<p class="form-actions" style="grid-column:1/-1;">
+						<button class="btn btn-primary" type="submit" id="saveSettingsBtn">保存全部设置</button>
+					</p>
+				</form>
+			</section>
+
+			<!-- ===== 审计日志 ===== -->
+			<section class="view-panel" id="view-logs" aria-label="审计日志">
+				<article class="card" style="padding:1rem 1.1rem;">
+					<header style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.6rem;">
+						<h2 class="section-title" style="margin:0;">操作审计日志</h2>
+						<button class="btn btn-ghost btn-sm" id="clearLogs" type="button">清空日志</button>
+					</header>
+					<ol class="log-list" id="logList"></ol>
+				</article>
+			</section>
+		</main>
+
+		<dialog id="detailDialog" class="modal" aria-label="评论详情">
+			<article class="modal-body" id="detailBody"></article>
+		</dialog>
+
+		<aside class="toast" id="toast" role="status" aria-live="polite"></aside>
+
+		<script is:inline>
+			/* 真实数据版：数据全部来自 Twikoo 后端；鉴权用「密码 md5」当 accessToken */
+			(function () {
+				/* ---------- MD5（WebCrypto 不支持 md5，内联一份） ---------- */
+				function md5core(str) {
+					function add32(a, b) {
+						return (a + b) & 0xffffffff;
+					}
+					function cmn(q, a, b, x, s, t) {
+						a = add32(add32(a, q), add32(x, t));
+						return add32((a << s) | (a >>> (32 - s)), b);
+					}
+					function ff(a, b, c, d, x, s, t) {
+						return cmn((b & c) | (~b & d), a, b, x, s, t);
+					}
+					function gg(a, b, c, d, x, s, t) {
+						return cmn((b & d) | (c & ~d), a, b, x, s, t);
+					}
+					function hh(a, b, c, d, x, s, t) {
+						return cmn(b ^ c ^ d, a, b, x, s, t);
+					}
+					function ii(a, b, c, d, x, s, t) {
+						return cmn(c ^ (b | ~d), a, b, x, s, t);
+					}
+					function cycle(x, k) {
+						let a = x[0], b = x[1], c = x[2], d = x[3];
+						a = ff(a, b, c, d, k[0], 7, -680876936);
+						d = ff(d, a, b, c, k[1], 12, -389564586);
+						c = ff(c, d, a, b, k[2], 17, 606105819);
+						b = ff(b, c, d, a, k[3], 22, -1044525330);
+						a = ff(a, b, c, d, k[4], 7, -176418897);
+						d = ff(d, a, b, c, k[5], 12, 1200080426);
+						c = ff(c, d, a, b, k[6], 17, -1473231341);
+						b = ff(b, c, d, a, k[7], 22, -45705983);
+						a = ff(a, b, c, d, k[8], 7, 1770035416);
+						d = ff(d, a, b, c, k[9], 12, -1958414417);
+						c = ff(c, d, a, b, k[10], 17, -42063);
+						b = ff(b, c, d, a, k[11], 22, -1990404162);
+						a = ff(a, b, c, d, k[12], 7, 1804603682);
+						d = ff(d, a, b, c, k[13], 12, -40341101);
+						c = ff(c, d, a, b, k[14], 17, -1502002290);
+						b = ff(b, c, d, a, k[15], 22, 1236535329);
+						a = gg(a, b, c, d, k[1], 5, -165796510);
+						d = gg(d, a, b, c, k[6], 9, -1069501632);
+						c = gg(c, d, a, b, k[11], 14, 643717713);
+						b = gg(b, c, d, a, k[0], 20, -373897302);
+						a = gg(a, b, c, d, k[5], 5, -701558691);
+						d = gg(d, a, b, c, k[10], 9, 38016083);
+						c = gg(c, d, a, b, k[15], 14, -660478335);
+						b = gg(b, c, d, a, k[4], 20, -405537848);
+						a = gg(a, b, c, d, k[9], 5, 568446438);
+						d = gg(d, a, b, c, k[14], 9, -1019803690);
+						c = gg(c, d, a, b, k[3], 14, -187363961);
+						b = gg(b, c, d, a, k[8], 20, 1163531501);
+						a = gg(a, b, c, d, k[13], 5, -1444681467);
+						d = gg(d, a, b, c, k[2], 9, -51403784);
+						c = gg(c, d, a, b, k[7], 14, 1735328473);
+						b = gg(b, c, d, a, k[12], 20, -1926607734);
+						a = hh(a, b, c, d, k[5], 4, -378558);
+						d = hh(d, a, b, c, k[8], 11, -2022574463);
+						c = hh(c, d, a, b, k[11], 16, 1839030562);
+						b = hh(b, c, d, a, k[14], 23, -35309556);
+						a = hh(a, b, c, d, k[1], 4, -1530992060);
+						d = hh(d, a, b, c, k[4], 11, 1272893353);
+						c = hh(c, d, a, b, k[7], 16, -155497632);
+						b = hh(b, c, d, a, k[10], 23, -1094730640);
+						a = hh(a, b, c, d, k[13], 4, 681279174);
+						d = hh(d, a, b, c, k[0], 11, -358537222);
+						c = hh(c, d, a, b, k[3], 16, -722521979);
+						b = hh(b, c, d, a, k[6], 23, 76029189);
+						a = hh(a, b, c, d, k[9], 4, -640364487);
+						d = hh(d, a, b, c, k[12], 11, -421815835);
+						c = hh(c, d, a, b, k[15], 16, 530742520);
+						b = hh(b, c, d, a, k[2], 23, -995338651);
+						a = ii(a, b, c, d, k[0], 6, -198630844);
+						d = ii(d, a, b, c, k[7], 10, 1126891415);
+						c = ii(c, d, a, b, k[14], 15, -1416354905);
+						b = ii(b, c, d, a, k[5], 21, -57434055);
+						a = ii(a, b, c, d, k[12], 6, 1700485571);
+						d = ii(d, a, b, c, k[3], 10, -1894986606);
+						c = ii(c, d, a, b, k[10], 15, -1051523);
+						b = ii(b, c, d, a, k[1], 21, -2054922799);
+						a = ii(a, b, c, d, k[8], 6, 1873313359);
+						d = ii(d, a, b, c, k[15], 10, -30611744);
+						c = ii(c, d, a, b, k[6], 15, -1560198380);
+						b = ii(b, c, d, a, k[13], 21, 1309151649);
+						a = ii(a, b, c, d, k[4], 6, -145523070);
+						d = ii(d, a, b, c, k[11], 10, -1120210379);
+						c = ii(c, d, a, b, k[2], 15, 718787259);
+						b = ii(b, c, d, a, k[9], 21, -343485551);
+						x[0] = add32(a, x[0]);
+						x[1] = add32(b, x[1]);
+						x[2] = add32(c, x[2]);
+						x[3] = add32(d, x[3]);
+					}
+					function blk(s) {
+						const out = [];
+						for (let i = 0; i < 64; i += 4)
+							out[i >> 2] =
+								s.charCodeAt(i) +
+								(s.charCodeAt(i + 1) << 8) +
+								(s.charCodeAt(i + 2) << 16) +
+								(s.charCodeAt(i + 3) << 24);
+						return out;
+					}
+					const utf8 = unescape(encodeURIComponent(str));
+					const n = utf8.length;
+					const st = [1732584193, -271733879, -1732584194, 271733878];
+					let i;
+					for (i = 64; i <= n; i += 64) cycle(st, blk(utf8.substring(i - 64, i)));
+					const tail = utf8.substring(i - 64);
+					const b = new Array(16).fill(0);
+					for (i = 0; i < tail.length; i++) b[i >> 2] |= tail.charCodeAt(i) << ((i % 4) << 3);
+					b[i >> 2] |= 0x80 << ((i % 4) << 3);
+					if (i > 55) {
+						cycle(st, b);
+						b.fill(0);
+					}
+					b[14] = n * 8;
+					cycle(st, b);
+					return st
+						.map((v) =>
+							[v & 0xff, (v >> 8) & 0xff, (v >> 16) & 0xff, (v >>> 24) & 0xff]
+								.map((x) => x.toString(16).padStart(2, "0"))
+								.join(""),
+						)
+						.join("");
+				}
+
+				/* ---------- 基础 ---------- */
+				const $ = (s, el = document) => el.querySelector(s);
+				const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+				const ENDPOINT = document.body.dataset.endpoint || "";
+				const GISCUS_READY = document.body.dataset.giscusReady === "1";
+				const GISCUS_REPO = document.body.dataset.giscusRepo || "";
+				const TOKEN_KEY = "fuwari_admin_token";
+
+				let TOKEN = sessionStorage.getItem(TOKEN_KEY) || "";
+				let COMMENTS = [];
+				let CONFIG = {};
+				let LOGS = [];
+				const state = {
+					view: "dashboard",
+					filter: "all",
+					keyword: "",
+					userFilter: "all",
+					userKeyword: "",
+					page: 1,
+					per: 20,
+					selected: new Set(),
+				};
+
+				const esc = (s) =>
+					!s
+						? ""
+						: String(s).replace(
+								/[&<>"']/g,
+								(c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
+							);
+				const stripHtml = (h) => {
+					const d = document.createElement("div");
+					d.innerHTML = h || "";
+					return (d.textContent || "").trim();
+				};
+				const fmtTime = (ts) => {
+					const diff = Date.now() - ts;
+					if (diff < 60000) return "刚刚";
+					if (diff < 3600000) return Math.floor(diff / 60000) + " 分钟前";
+					if (diff < 86400000) return Math.floor(diff / 3600000) + " 小时前";
+					const d = new Date(ts);
+					const p = (n) => String(n).padStart(2, "0");
+					return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+				};
+				const iso = (ts) => new Date(ts).toISOString();
+				const initial = (n) => (n && n.trim() ? n.trim().charAt(0).toUpperCase() : "?");
+
+				function toast(msg) {
+					const el = $("#toast");
+					el.textContent = msg;
+					el.classList.add("show");
+					clearTimeout(el._t);
+					el._t = setTimeout(() => el.classList.remove("show"), 2400);
+				}
+				function addLog(action, text) {
+					LOGS.unshift({ action, text, time: Date.now() });
+					if (LOGS.length > 100) LOGS.pop();
+					renderLogs();
+				}
+
+				/* ---------- 接口 ---------- */
+				async function api(event, extra) {
+					const res = await fetch(ENDPOINT, {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify(Object.assign({ event, accessToken: TOKEN }, extra || {})),
+					});
+					const text = await res.text();
+					try {
+						return JSON.parse(text);
+					} catch (e) {
+						throw new Error("接口返回异常：" + text.slice(0, 120));
+					}
+				}
+				async function apiOk(event, extra) {
+					const r = await api(event, extra);
+					if (r.code !== 0) throw new Error(r.message || "操作失败（code " + r.code + "）");
+					return r;
+				}
+
+				async function verifyToken() {
+					if (!TOKEN) return false;
+					try {
+						return (await api("GET_CONFIG_FOR_ADMIN")).code === 0;
+					} catch (e) {
+						return false;
+					}
+				}
+				function showLogin(msg) {
+					$("#loginMask").hidden = false;
+					$("#logoutBtn").hidden = true;
+					$("#loginError").textContent = msg || "";
+					setTimeout(() => $("#loginPassword").focus(), 60);
+				}
+				function hideLogin() {
+					$("#loginMask").hidden = true;
+					$("#logoutBtn").hidden = false;
+				}
+
+				/* ---------- 数据 ---------- */
+				function mapComment(c) {
+					return {
+						id: c.id,
+						uid: c.uid || c.mailMd5 || c.id,
+						nick: c.nick || "匿名",
+						mailMd5: c.mailMd5 || "",
+						link: c.link || "",
+						url: c.url || "",
+						comment: c.comment || "",
+						text: stripHtml(c.comment),
+						created: c.created || 0,
+						ip: c.ip || "",
+						ipRegion: c.ipRegion || "",
+						ua: c.ua || "",
+						pid: c.pid || "",
+						rid: c.rid || "",
+						isSpam: !!c.isSpam,
+						top: !!c.top,
+						master: !!c.master,
+						like: Array.isArray(c.like) ? c.like : [],
+					};
+				}
+
+				async function loadAll() {
+					const per = 100;
+					let pageNo = 1,
+						all = [],
+						count = 0;
+					while (pageNo <= 10) {
+						const r = await apiOk("COMMENT_GET_FOR_ADMIN", { per, page: pageNo });
+						count = r.count || 0;
+						all = all.concat(r.data || []);
+						if (all.length >= count || (r.data || []).length < per) break;
+						pageNo++;
+					}
+					COMMENTS = all.map(mapComment);
+				}
+				async function loadConfig() {
+					CONFIG = (await apiOk("GET_CONFIG_FOR_ADMIN")).config || {};
+				}
+				async function refresh() {
+					try {
+						await Promise.all([loadAll(), loadConfig()]);
+						renderAll();
+					} catch (e) {
+						toast(e.message || "加载失败");
+					}
+				}
+
+				/* ---------- 派生数据 ---------- */
+				function users() {
+					const map = new Map();
+					COMMENTS.forEach((c) => {
+						const k = c.uid || c.id;
+						if (!map.has(k))
+							map.set(k, {
+								uid: c.uid,
+								nick: c.nick,
+								mailMd5: c.mailMd5,
+								ip: c.ip,
+								ipRegion: c.ipRegion,
+								comments: [],
+								last: c.created,
+							});
+						const u = map.get(k);
+						u.comments.push(c);
+						u.last = Math.max(u.last, c.created);
+						if (c.ip) u.ip = c.ip;
+					});
+					return [...map.values()].sort((a, b) => b.last - a.last);
+				}
+
+				/* ---------- 渲染 ---------- */
+				function renderStats() {
+					const total = COMMENTS.length;
+					const visible = COMMENTS.filter((c) => !c.isSpam).length;
+					const pending = COMMENTS.filter((c) => c.isSpam).length;
+					const userCount = users().length;
+
+					$("#stats").innerHTML = `
+            <li class="card stat-card"><span class="label">总评论</span><data class="value" value="${total}">${total}</data><small class="sub">全部数据</small></li>
+            <li class="card stat-card"><span class="label">已通过</span><data class="value accent" value="${visible}">${visible}</data><small class="sub">前台展示</small></li>
+            <li class="card stat-card"><span class="label">待审核</span><data class="value ${pending ? "warn" : ""}" value="${pending}">${pending}</data><small class="sub">${pending ? "需要处理" : "暂无积压"}</small></li>
+            <li class="card stat-card"><span class="label">用户</span><data class="value" value="${userCount}">${userCount}</data><small class="sub">按 uid 去重</small></li>`;
+
+					const pages = {};
+					COMMENTS.forEach((c) => (pages[c.url] = (pages[c.url] || 0) + 1));
+					const topPages = Object.entries(pages).sort((a, b) => b[1] - a[1]).slice(0, 5);
+					const maxP = Math.max(...topPages.map((x) => x[1]), 1);
+					$("#topPages").innerHTML = topPages.length
+						? topPages
+								.map(
+									([u, n]) =>
+										`<li class="bar-row"><span class="bar-label" title="${esc(u)}">${esc(u)}</span><progress class="bar-progress" value="${n}" max="${maxP}"></progress><span class="bar-val">${n}</span></li>`,
+								)
+								.join("")
+						: `<li class="todo-empty">暂无数据</li>`;
+
+					const tu = users().sort((a, b) => b.comments.length - a.comments.length).slice(0, 5);
+					const maxU = Math.max(...tu.map((u) => u.comments.length), 1);
+					$("#topUsers").innerHTML = tu.length
+						? tu
+								.map(
+									(u) =>
+										`<li class="bar-row"><span class="bar-label">${esc(u.nick)}</span><progress class="bar-progress success" value="${u.comments.length}" max="${maxU}"></progress><span class="bar-val">${u.comments.length}</span></li>`,
+								)
+								.join("")
+						: `<li class="todo-empty">暂无数据</li>`;
+
+					const todo = [];
+					if (pending) todo.push({ icon: "⏳", text: `${pending} 条评论等待审核`, target: "pending" });
+					if (!total) todo.push({ icon: "📭", text: "还没有任何评论", target: "comments" });
+					$("#todoList").innerHTML = todo.length
+						? todo
+								.map(
+									(t) =>
+										`<li><a href="#" data-goto="${t.target}"><span aria-hidden="true">${t.icon}</span><span>${t.text}</span><small>去处理 →</small></a></li>`,
+								)
+								.join("")
+						: `<li class="todo-empty">✓ 暂无待处理事项</li>`;
+				}
+
+				function filtered() {
+					const kw = state.keyword.trim().toLowerCase();
+					return COMMENTS.filter((c) => {
+						if (state.filter === "visible" && c.isSpam) return false;
+						if (state.filter === "pending" && !c.isSpam) return false;
+						if (!kw) return true;
+						return (
+							c.nick.toLowerCase().includes(kw) ||
+							c.text.toLowerCase().includes(kw) ||
+							(c.url || "").toLowerCase().includes(kw) ||
+							(c.ip || "").includes(kw)
+						);
+					}).sort((a, b) => b.created - a.created);
+				}
+
+				function commentItem(c) {
+					const badges = [
+						c.master ? '<span class="badge badge-master">博主</span>' : "",
+						c.top ? '<span class="badge badge-top">置顶</span>' : "",
+						c.isSpam ? '<span class="badge badge-pending">待审核</span>' : "",
+					]
+						.filter(Boolean)
+						.join("");
+					return `
+          <li class="comment-item card ${c.isSpam ? "is-pending" : ""}" data-id="${c.id}">
+            <figure class="avatar">${initial(c.nick)}</figure>
+            <p class="comment-meta">
+              ${badges}
+              <strong class="nick">${esc(c.nick)}</strong>
+              <time class="time" datetime="${iso(c.created)}">${fmtTime(c.created)}</time>
+            </p>
+            <p class="comment-url"><a href="${esc(c.url)}" target="_blank" rel="noopener">⌂ ${esc(c.url)}</a></p>
+            <p class="comment-text">${esc(c.text).slice(0, 300)}</p>
+            <footer class="comment-actions">
+              <button class="btn btn-ghost btn-sm" data-action="detail" data-id="${c.id}" type="button">详情</button>
+              ${
+								c.isSpam
+									? `<button class="btn btn-success btn-sm" data-action="approve" data-id="${c.id}" type="button">通过</button>`
+									: `<button class="btn btn-ghost btn-sm" data-action="hide" data-id="${c.id}" type="button">隐藏</button>`
+							}
+              <button class="btn btn-ghost btn-sm" data-action="top" data-id="${c.id}" type="button">${c.top ? "取消置顶" : "置顶"}</button>
+              <button class="btn btn-danger btn-sm" data-action="delete" data-id="${c.id}" type="button">删除</button>
+              <label class="checkbox-wrap"><input type="checkbox" data-select-id="${c.id}" ${state.selected.has(c.id) ? "checked" : ""} /> 选择</label>
+            </footer>
+          </li>`;
+				}
+
+				function renderComments() {
+					const list = filtered();
+					$("#cntAll").textContent = COMMENTS.length ? ` ${COMMENTS.length}` : "";
+					$("#cntVisible").textContent = ` ${COMMENTS.filter((c) => !c.isSpam).length}`;
+					$("#cntPending").textContent = ` ${COMMENTS.filter((c) => c.isSpam).length}`;
+
+					const pages = Math.max(1, Math.ceil(list.length / state.per));
+					if (state.page > pages) state.page = pages;
+					const slice = list.slice((state.page - 1) * state.per, state.page * state.per);
+
+					$("#commentList").innerHTML = slice.length
+						? slice.map(commentItem).join("")
+						: `<li class="list-empty">${COMMENTS.length ? "没有符合条件的评论" : "还没有任何评论"}</li>`;
+
+					$("#pager").innerHTML =
+						list.length > state.per
+							? `<button class="btn btn-ghost btn-sm" id="prevPage" ${state.page <= 1 ? "disabled" : ""} type="button">上一页</button>
+                 <span>第 ${state.page} / ${pages} 页 · 共 ${list.length} 条</span>
+                 <button class="btn btn-ghost btn-sm" id="nextPage" ${state.page >= pages ? "disabled" : ""} type="button">下一页</button>`
+							: list.length
+								? `<span>共 ${list.length} 条</span>`
+								: "";
+				}
+
+				function renderUsers() {
+					const kw = state.userKeyword.trim().toLowerCase();
+					let list = users();
+					if (state.userFilter === "spammy") list = list.filter((u) => u.comments.some((c) => c.isSpam));
+					if (kw)
+						list = list.filter(
+							(u) =>
+								(u.nick || "").toLowerCase().includes(kw) ||
+								(u.mailMd5 || "").includes(kw) ||
+								(u.ip || "").includes(kw),
+						);
+					$("#userList").innerHTML = list.length
+						? list
+								.map((u) => {
+									const spam = u.comments.filter((c) => c.isSpam).length;
+									return `<li class="card user-card">
+                    <figure class="avatar sm">${initial(u.nick)}</figure>
+                    <section class="user-info">
+                      <p class="user-name-row">
+                        <strong class="user-name">${esc(u.nick)}</strong>
+                        ${spam ? `<span class="badge badge-pending">${spam} 条待审</span>` : ""}
+                      </p>
+                      <p class="user-meta">${u.comments.length} 条评论 · ${esc(u.ipRegion || u.ip || "未知地区")} · 最近 ${fmtTime(u.last)}</p>
+                    </section>
+                  </li>`;
+								})
+								.join("")
+						: `<li class="list-empty">暂无用户</li>`;
+				}
+
+				function renderRules() {
+					const forbidden = (CONFIG.FORBIDDEN_WORDS || "").split(",").filter(Boolean);
+					const blocked = (CONFIG.BLOCKED_WORDS || "").split(",").filter(Boolean);
+					const manual = CONFIG.AKISMET_KEY === "MANUAL_REVIEW";
+					const hit = COMMENTS.filter(
+						(c) => !c.master && forbidden.some((w) => (c.nick + c.text).toLowerCase().includes(w.toLowerCase())),
+					).length;
+
+					const rows = [
+						{ name: "人工审核", desc: "所有新评论进入待审核，通过后才公开", on: manual, stat: manual ? `${COMMENTS.filter((c) => c.isSpam).length} 条待审` : "已关闭" },
+						{ name: "违禁词", desc: "昵称或正文命中即静默标记为垃圾", on: forbidden.length > 0, stat: `${forbidden.length} 个词 · 现有 ${hit} 条命中` },
+						{ name: "屏蔽词", desc: "命中直接拒绝提交并提示「包含屏蔽词」", on: blocked.length > 0, stat: `${blocked.length} 个词` },
+						{ name: "频率限制", desc: "同一 IP 每 10 分钟最多发表条数", on: Number(CONFIG.LIMIT_PER_MINUTE || 0) > 0, stat: CONFIG.LIMIT_PER_MINUTE ? `每 10 分钟 ${CONFIG.LIMIT_PER_MINUTE} 条` : "不限制" },
+						{ name: "长度限制", desc: "超过长度的评论拒绝提交", on: Number(CONFIG.LIMIT_LENGTH || 0) > 0, stat: CONFIG.LIMIT_LENGTH ? `最长 ${CONFIG.LIMIT_LENGTH} 字` : "不限制" },
+					];
+
+					$("#ruleList").innerHTML = rows
+						.map(
+							(r) => `
+            <li class="card rule-card">
+              <span class="rule-icon ${r.on ? "on" : ""}" aria-hidden="true">${r.on ? "✓" : "·"}</span>
+              <section class="rule-body">
+                <p class="rule-name">${r.name}<span class="badge ${r.on ? "badge-top" : "badge-hidden"}">${r.on ? "已启用" : "未启用"}</span></p>
+                <p class="rule-desc">${r.desc}</p>
+                <p class="rule-stat">${r.stat}</p>
+              </section>
+            </li>`,
+						)
+						.join("");
+				}
+
+				function tagEditor(container, words) {
+					container.innerHTML = "";
+					words.forEach((w) => {
+						const li = document.createElement("li");
+						li.className = "tag";
+						li.innerHTML = `${esc(w)} <button type="button" data-remove-tag="${esc(w)}" aria-label="移除 ${esc(w)}">×</button>`;
+						container.appendChild(li);
+					});
+					const item = document.createElement("li");
+					item.className = "tag-input-item";
+					const input = document.createElement("input");
+					input.type = "text";
+					input.placeholder = "输入后回车添加…";
+					input.dataset.addTag = container.id;
+					item.appendChild(input);
+					container.appendChild(item);
+				}
+
+				function renderSettings() {
+					const manual = CONFIG.AKISMET_KEY === "MANUAL_REVIEW";
+					$("#setManualReview").checked = manual;
+					$("#reviewStateText").textContent = manual
+						? "已开启：新评论需在「评论管理」里点通过"
+						: "已关闭：新评论直接公开";
+					// 没写过这两项时，Twikoo 实际用的是默认值（10 条 / 500 字），
+					// 显示 0 会让人误以为「不限」，一保存就把默认限制抹掉了。
+					$("#setRateLimit").value = CONFIG.LIMIT_PER_MINUTE === undefined ? 10 : CONFIG.LIMIT_PER_MINUTE;
+					$("#setMaxLength").value = CONFIG.LIMIT_LENGTH === undefined ? 500 : CONFIG.LIMIT_LENGTH;
+					tagEditor($("#forbiddenTags"), (CONFIG.FORBIDDEN_WORDS || "").split(",").filter(Boolean));
+					tagEditor($("#blockedTags"), (CONFIG.BLOCKED_WORDS || "").split(",").filter(Boolean));
+				}
+
+				function renderGithub() {
+					$("#ghRepoName").textContent = GISCUS_REPO || "(未配置)";
+					if (GISCUS_READY) {
+						$("#ghStatusText").textContent = `giscus 已配置完成，评论存放在 ${GISCUS_REPO} 的 Discussions 中。`;
+						$("#ghStateNote").textContent = "站点已切换到 giscus；此后台仅用于查看历史 Twikoo 评论。";
+					} else {
+						$("#ghStatusText").textContent = "当前使用 Twikoo：评论只需填昵称即可发表，没有 GitHub 登录强制。";
+						$("#ghStateNote").textContent = "尚未完成 giscus 接入（缺 categoryId），站点仍在用 Twikoo。完成上面两步后告诉我，我来切换。";
+					}
+				}
+
+				function renderLogs() {
+					$("#logList").innerHTML = LOGS.length
+						? LOGS.slice(0, 50)
+								.map(
+									(l) => `<li class="log-item">
+                <span class="log-dot ${l.action}" aria-hidden="true"></span>
+                <p class="log-text">${l.text}</p>
+                <time class="log-time" datetime="${iso(l.time)}">${fmtTime(l.time)}</time>
+              </li>`,
+								)
+								.join("")
+						: `<li class="todo-empty">暂无操作记录</li>`;
+				}
+
+				function renderAll() {
+					renderStats();
+					renderComments();
+					renderUsers();
+					renderRules();
+					renderSettings();
+					renderGithub();
+					renderLogs();
+				}
+
+				/* ---------- 操作 ---------- */
+				function switchView(v) {
+					state.view = v;
+					$$(".view-tab").forEach((b) => b.classList.toggle("active", b.dataset.view === v));
+					$$(".view-panel").forEach((p) => p.classList.toggle("active", p.id === "view-" + v));
+				}
+				const nick = (id) => (COMMENTS.find((x) => x.id === id) || {}).nick || id;
+
+				async function setComment(id, patch, logText) {
+					await apiOk("COMMENT_SET_FOR_ADMIN", { id, set: patch });
+					const c = COMMENTS.find((x) => x.id === id);
+					if (c) Object.assign(c, patch);
+					renderAll();
+					if (logText) addLog("edit", logText);
+				}
+				async function delComment(id) {
+					await apiOk("COMMENT_DELETE_FOR_ADMIN", { id });
+					COMMENTS = COMMENTS.filter((c) => c.id !== id);
+					state.selected.delete(id);
+					renderAll();
+				}
+				function openDetail(id) {
+					const c = COMMENTS.find((x) => x.id === id);
+					if (!c) return;
+					$("#detailBody").innerHTML = `
+            <header class="modal-header">
+              <h2 class="section-title">评论详情</h2>
+              <button class="btn btn-ghost btn-sm" type="button" id="closeDetail">关闭</button>
+            </header>
+            <section class="detail-section">
+              <p><b>${esc(c.nick)}</b> · ${esc(c.ipRegion || c.ip)} · ${fmtTime(c.created)}</p>
+              <p class="section-desc">${esc(c.url)}</p>
+              <blockquote class="detail-quote">${esc(c.text)}</blockquote>
+            </section>
+            <section class="detail-section">
+              <p class="section-desc">UA：${esc(c.ua || "—")}</p>
+              <p class="section-desc">UID：${esc(c.uid)}</p>
+              <p class="section-desc">邮箱 MD5：${esc(c.mailMd5 || "—")}</p>
+              <p class="section-desc">状态：${c.isSpam ? "待审核 / 隐藏" : "已通过"}${c.top ? " · 置顶" : ""}${c.master ? " · 博主" : ""}</p>
+            </section>`;
+					$("#detailDialog").showModal();
+					$("#closeDetail").onclick = () => $("#detailDialog").close();
+				}
+
+				async function handleAction(action, id) {
+					try {
+						if (action === "detail") return openDetail(id);
+						if (action === "approve") {
+							await setComment(id, { isSpam: false }, `通过 <b>${esc(nick(id))}</b> 的评论`);
+							return toast("已通过，前台可见");
+						}
+						if (action === "hide") {
+							await setComment(id, { isSpam: true }, `隐藏 <b>${esc(nick(id))}</b> 的评论`);
+							return toast("已隐藏（进待审核）");
+						}
+						if (action === "top") {
+							const c = COMMENTS.find((x) => x.id === id);
+							await setComment(id, { top: !c.top }, `${c.top ? "取消置顶" : "置顶"} <b>${esc(c.nick)}</b>`);
+							return toast("已更新置顶状态");
+						}
+						if (action === "delete") {
+							if (!confirm("确定删除这条评论？删除后不可恢复。")) return;
+							const n = nick(id);
+							await delComment(id);
+							addLog("delete", `删除 <b>${esc(n)}</b> 的评论`);
+							return toast("已删除");
+						}
+					} catch (e) {
+						toast(e.message || "操作失败");
+					}
+				}
+
+				async function bulk(kind) {
+					const ids = [...state.selected];
+					if (!ids.length) return toast("先勾选评论");
+					if (kind === "delete" && !confirm(`确定删除 ${ids.length} 条评论？`)) return;
+					try {
+						for (const id of ids) {
+							if (kind === "delete") await apiOk("COMMENT_DELETE_FOR_ADMIN", { id });
+							else await apiOk("COMMENT_SET_FOR_ADMIN", { id, set: { isSpam: kind === "hide" } });
+						}
+						if (kind === "delete") COMMENTS = COMMENTS.filter((c) => !ids.includes(c.id));
+						else COMMENTS.forEach((c) => { if (ids.includes(c.id)) c.isSpam = kind === "hide"; });
+						state.selected.clear();
+						renderAll();
+						addLog(kind === "delete" ? "delete" : "edit", `批量${kind === "delete" ? "删除" : kind === "hide" ? "隐藏" : "通过"} ${ids.length} 条`);
+						toast("批量操作完成");
+					} catch (e) {
+						toast(e.message || "批量操作失败");
+					}
+				}
+
+				async function saveSettings() {
+					const patch = {
+						AKISMET_KEY: $("#setManualReview").checked ? "MANUAL_REVIEW" : "",
+						LIMIT_PER_MINUTE: String($("#setRateLimit").value || 0),
+						LIMIT_LENGTH: String($("#setMaxLength").value || 0),
+						FORBIDDEN_WORDS: $$("#forbiddenTags .tag").map((li) => li.firstChild.textContent.trim()).join(","),
+						BLOCKED_WORDS: $$("#blockedTags .tag").map((li) => li.firstChild.textContent.trim()).join(","),
+					};
+					$("#saveSettingsBtn").disabled = true;
+					try {
+						await apiOk("SET_CONFIG", { config: patch });
+						Object.assign(CONFIG, patch);
+						addLog("config", "更新审核设置（人工审核=" + (patch.AKISMET_KEY ? "开" : "关") + "）");
+						toast("设置已保存");
+						renderAll();
+					} catch (e) {
+						toast(e.message || "保存失败");
+					} finally {
+						$("#saveSettingsBtn").disabled = false;
+					}
+				}
+
+				/* ---------- 事件 ---------- */
+				$$(".view-tab").forEach((b) => b.addEventListener("click", () => switchView(b.dataset.view)));
+				$("#filterGroup").addEventListener("click", (e) => {
+					const b = e.target.closest("[data-filter]");
+					if (!b) return;
+					$$("#filterGroup .chip").forEach((c) => c.classList.toggle("active", c === b));
+					state.filter = b.dataset.filter;
+					state.page = 1;
+					renderComments();
+				});
+				$$("[data-user-filter]").forEach((b) =>
+					b.addEventListener("click", () => {
+						$$("[data-user-filter]").forEach((x) => x.classList.toggle("active", x === b));
+						state.userFilter = b.dataset.userFilter;
+						renderUsers();
+					}),
+				);
+				document.addEventListener("click", (e) => {
+					const act = e.target.closest("[data-action]");
+					if (act) return handleAction(act.dataset.action, act.dataset.id);
+					const goto = e.target.closest("[data-goto]");
+					if (goto) {
+						e.preventDefault();
+						switchView("comments");
+						state.filter = goto.dataset.goto === "pending" ? "pending" : "all";
+						$$("#filterGroup .chip").forEach((c) => c.classList.toggle("active", c.dataset.filter === state.filter));
+						state.page = 1;
+						renderComments();
+						return;
+					}
+					const rm = e.target.closest("[data-remove-tag]");
+					if (rm) rm.closest(".tag").remove();
+					if (e.target.id === "prevPage") { state.page--; renderComments(); }
+					if (e.target.id === "nextPage") { state.page++; renderComments(); }
+				});
+				document.addEventListener("change", (e) => {
+					if (e.target.matches("[data-select-id]")) {
+						const id = e.target.dataset.selectId;
+						e.target.checked ? state.selected.add(id) : state.selected.delete(id);
+					}
+				});
+				document.addEventListener("keydown", (e) => {
+					const inp = e.target.closest("[data-add-tag]");
+					if (inp && e.key === "Enter") {
+						e.preventDefault();
+						const v = inp.value.trim();
+						if (!v) return;
+						const wrap = document.getElementById(inp.dataset.addTag);
+						const li = document.createElement("li");
+						li.className = "tag";
+						li.innerHTML = `${esc(v)} <button type="button" data-remove-tag="${esc(v)}">×</button>`;
+						wrap.insertBefore(li, inp.closest(".tag-input-item"));
+						inp.value = "";
+					}
+				});
+				$("#searchInput").addEventListener("input", (e) => {
+					state.keyword = e.target.value;
+					state.page = 1;
+					renderComments();
+				});
+				$("#userSearch").addEventListener("input", (e) => {
+					state.userKeyword = e.target.value;
+					renderUsers();
+				});
+				$("#bulkApprove").addEventListener("click", () => bulk("approve"));
+				$("#bulkHide").addEventListener("click", () => bulk("hide"));
+				$("#bulkDelete").addEventListener("click", () => bulk("delete"));
+				$("#settingsForm").addEventListener("submit", (e) => {
+					e.preventDefault();
+					saveSettings();
+				});
+				$("#clearLogs").addEventListener("click", () => {
+					LOGS = [];
+					renderLogs();
+				});
+				$("#refreshBtn").addEventListener("click", async () => {
+					$("main").classList.add("is-loading");
+					await refresh();
+					$("main").classList.remove("is-loading");
+					toast("已刷新");
+				});
+				$("#exportBtn").addEventListener("click", () => {
+					const blob = new Blob([JSON.stringify(COMMENTS, null, 2)], { type: "application/json" });
+					const a = document.createElement("a");
+					a.href = URL.createObjectURL(blob);
+					a.download = "twikoo-comments-" + new Date().toISOString().slice(0, 10) + ".json";
+					a.click();
+					URL.revokeObjectURL(a.href);
+				});
+				$("#themeToggle").addEventListener("click", () => {
+					const el = document.documentElement;
+					const next = el.dataset.theme === "dark" ? "light" : "dark";
+					el.dataset.theme = next;
+					localStorage.setItem("admin_theme", next);
+				});
+				$("#logoutBtn").addEventListener("click", () => {
+					TOKEN = "";
+					sessionStorage.removeItem(TOKEN_KEY);
+					COMMENTS = [];
+					CONFIG = {};
+					showLogin("已退出登录");
+				});
+				$("#loginForm").addEventListener("submit", async (e) => {
+					e.preventDefault();
+					const pw = $("#loginPassword").value;
+					if (!pw) return;
+					$("#loginBtn").disabled = true;
+					$("#loginError").textContent = "";
+					const hash = md5core(pw);
+					TOKEN = hash;
+					try {
+						const r = await api("LOGIN", { password: hash });
+						if (r.code !== 0) throw new Error(r.message || "密码错误");
+						sessionStorage.setItem(TOKEN_KEY, hash);
+						if (!(await verifyToken())) throw new Error("密码正确但没有管理员权限");
+						$("#loginPassword").value = "";
+						hideLogin();
+						await refresh();
+						addLog("login", "登录后台");
+					} catch (err) {
+						TOKEN = "";
+						sessionStorage.removeItem(TOKEN_KEY);
+						$("#loginError").textContent = err.message || "登录失败";
+					} finally {
+						$("#loginBtn").disabled = false;
+					}
+				});
+
+				/* ---------- 启动 ---------- */
+				(function boot() {
+					const savedTheme = localStorage.getItem("admin_theme");
+					if (savedTheme) document.documentElement.dataset.theme = savedTheme;
+					if (!ENDPOINT) return showLogin("未配置评论后端地址");
+					if (!TOKEN) return showLogin("");
+					verifyToken().then((ok) => {
+						if (!ok) {
+							TOKEN = "";
+							sessionStorage.removeItem(TOKEN_KEY);
+							return showLogin("");
+						}
+						hideLogin();
+						refresh();
+					});
+				})();
+			})();
+		</script>
+	</body>
+</html>

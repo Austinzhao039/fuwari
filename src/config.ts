@@ -87,8 +87,47 @@ export const expressiveCodeConfig: ExpressiveCodeConfig = {
 	theme: "github-dark",
 };
 
+// Twikoo 评论后端（自建，Nginx 反代 twikoo.austin666.top）
+const DEFAULT_TWIKOO_ENV_ID = "https://twikoo.austin666.top";
+
+// 允许用环境变量覆盖，但只有它长得像一个真正的 URL 时才采用。
+// 教训：构建机/面板曾把这里替换成 "PANEL_APP_PORT_HTTP" 这类变量名，
+// Twikoo 不认为是 URL 就会走腾讯 CloudBase 分支，报 INVALID_APP_SIGN，评论区整块空白。
+// 这个文件同时会被 astro.config.mjs 在纯 Node 环境里 import，
+// 那里没有 import.meta.env，所以要可选链取值，不能用点号直取。
+const envBag = (import.meta as unknown as { env?: Record<string, string | undefined> }).env;
+const twikooEnvOverride = envBag?.TWIKOO_ENV_ID;
+const twikooEnvId = /^https?:\/\/\S+$/i.test(twikooEnvOverride ?? "")
+	? (twikooEnvOverride as string)
+	: DEFAULT_TWIKOO_ENV_ID;
+
+// twikoo | giscus。切换用环境变量 COMMENT_PROVIDER，或直接改这里的默认值。
+// giscus 需要 GitHub 账号登录后才能评论，审核在 GitHub Discussions 里做。
+const commentProvider: "twikoo" | "giscus" =
+	envBag?.COMMENT_PROVIDER === "giscus" ? "giscus" : "twikoo";
+
 export const commentConfig: CommentConfig = {
+	provider: commentProvider,
 	twikoo: {
-		envId: "https://twikoo.austin666.top",
+		envId: twikooEnvId,
+		lang: "zh-CN",
+		// 与后端返回的版本保持一致，避免前后端协议错位
+		version: "1.6.44",
+	},
+	giscus: {
+		repo: "Austinzhao039/fuwari",
+		repoId: "R_kgDOQrqIAw", // 公开 API 查到的 node_id
+		category: "Announcements",
+		categoryId: "", // ← 待填：在 https://giscus.app 选完仓库和分类后复制过来
+		mapping: "pathname",
+		strict: "0",
+		reactionsEnabled: "1",
+		inputPosition: "top",
+		lang: "zh-CN",
+	},
+	moderation: {
+		// 与后台 AKISMET_KEY=MANUAL_REVIEW 对应：开了审核就置 true，前端会提示访客
+		reviewRequired: true,
+		notice: "评论提交后需经审核，通过后才会显示。",
 	},
 };

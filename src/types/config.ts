@@ -103,12 +103,36 @@ export type BlogPostData = {
 };
 
 export type CommentConfig = {
+	/** 用哪套评论：twikoo = 自建后端；giscus = GitHub Discussions（必须登录才能评论） */
+	provider?: "twikoo" | "giscus";
 	twikoo?: TwikooConfig;
+	giscus?: GiscusConfig;
+	moderation?: CommentModerationConfig;
+};
+
+// 评论审核提示（真正的审核逻辑在 Twikoo 后台：AKISMET_KEY=MANUAL_REVIEW）
+type CommentModerationConfig = {
+	reviewRequired?: boolean;
+	notice?: string;
 };
 
 type TwikooConfig = {
 	envId: string;
 	region?: string;
+	lang?: string;
+	version?: string;
+};
+
+// giscus 配置，repoId / categoryId 从 https://giscus.app 获取
+type GiscusConfig = {
+	repo: string;
+	repoId: string;
+	category: string;
+	categoryId: string;
+	mapping?: string;
+	strict?: string;
+	reactionsEnabled?: string;
+	inputPosition?: string;
 	lang?: string;
 };
 

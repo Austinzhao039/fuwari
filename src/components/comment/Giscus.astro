@@ -1,0 +1,80 @@
+---
+import { commentConfig } from "@/config";
+
+const giscus = commentConfig.giscus;
+const ready = Boolean(giscus?.repo && giscus?.repoId && giscus?.category && giscus?.categoryId);
+---
+
+<section class="card-base p-6 mb-4" id="giscus-wrap">
+	{
+		ready ? (
+			<script
+				is:inline
+				src="https://giscus.app/client.js"
+				data-repo={giscus!.repo}
+				data-repo-id={giscus!.repoId}
+				data-category={giscus!.category}
+				data-category-id={giscus!.categoryId}
+				data-mapping={giscus!.mapping ?? "pathname"}
+				data-strict={giscus!.strict ?? "0"}
+				data-reactions-enabled={giscus!.reactionsEnabled ?? "1"}
+				data-emit-metadata="0"
+				data-input-position={giscus!.inputPosition ?? "top"}
+				data-theme="light"
+				data-lang={giscus!.lang ?? "zh-CN"}
+				data-loading="lazy"
+				crossorigin="anonymous"
+				async
+			/>
+		) : (
+			<p class="text-sm text-black/40 dark:text-white/40">
+				评论功能正在配置中，暂时不可用。
+			</p>
+		)
+	}
+</section>
+
+<!-- giscus 在 iframe 里，不继承站点主题，要手动 postMessage 通知它切换 -->
+<script is:inline>
+	(function () {
+		function postTheme() {
+			var frame = document.querySelector("iframe.giscus-frame");
+			if (!frame || !frame.contentWindow) return;
+			var dark = document.documentElement.classList.contains("dark");
+			frame.contentWindow.postMessage(
+				{ giscus: { setConfig: { theme: dark ? "dark" : "light" } } },
+				"https://giscus.app",
+			);
+		}
+
+		var current = null;
+		function attach() {
+			var frame = document.querySelector("iframe.giscus-frame");
+			if (frame && frame !== current) {
+				current = frame;
+				frame.addEventListener("load", postTheme);
+			}
+			postTheme();
+		}
+
+		// iframe 是异步插入的，用观察器等它出现
+		var pending = false;
+		new MutationObserver(function () {
+			if (pending) return;
+			pending = true;
+			requestAnimationFrame(function () {
+				pending = false;
+				attach();
+			});
+		}).observe(document.body, { childList: true, subtree: true });
+
+		// 站点切深浅色时同步
+		new MutationObserver(postTheme).observe(document.documentElement, {
+			attributes: true,
+			attributeFilter: ["class"],
+		});
+
+		window.addEventListener("load", postTheme);
+		attach();
+	})();
+</script>

@@ -5,7 +5,7 @@ description: 'blender on iOS'
 image: ''
 tags: ["技术","建模","iOS","Github"]
 category: 'Tech'
-draft: false 
+draft: true 
 lang: ''
 ---
 

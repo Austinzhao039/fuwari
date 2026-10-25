@@ -29,3 +29,7 @@ yarn.lock
 # ide
 .idea
 *.iml
+
+# 本地预览截图 / 临时打包产物
+预览_*.png
+dist[0-9]*.zip

@@ -1,0 +1,143 @@
+---
+import type { CollectionEntry } from "astro:content";
+import { commentConfig } from "@/config";
+
+interface Props {
+	post: CollectionEntry<"posts">;
+}
+
+const { post } = Astro.props;
+const twikoo = commentConfig.twikoo;
+const moderation = commentConfig.moderation;
+const envId = twikoo?.envId ?? "";
+const lang = twikoo?.lang ?? "zh-CN";
+const version = twikoo?.version ?? "1.6.44";
+// 用固定路径作为评论标识，避免标题/文件名变更导致历史评论找不到
+const path = `/posts/${post.slug}`;
+---
+
+<section
+	class="card-base p-6 mb-4"
+	id="tcomment-wrap"
+	data-env-id={envId}
+	data-path={path}
+	data-lang={lang}
+	data-version={version}
+>
+	{
+		moderation?.reviewRequired && (
+			<p class="mb-4 text-sm text-black/40 dark:text-white/40">
+				{moderation.notice ?? "评论提交后需经审核，通过后才会显示。"}
+			</p>
+		)
+	}
+	<div id="tcomment">
+		<div style="padding:8px 0;color:#999;font-size:14px;">评论加载中…</div>
+	</div>
+</section>
+
+<style is:global>
+	/* 管理面板走独立网址 /admin，文章页不再显示齿轮入口。
+	   想恢复齿轮：删掉这条规则即可。 */
+	#tcomment-wrap .tk-icon + .tk-icon {
+		display: none;
+	}
+</style>
+
+<script>
+	type TwikooGlobal = {
+		init: (options: Record<string, unknown>) => Promise<void> | void;
+	};
+
+	// 主 CDN 挂了就换下一个，避免整块评论区空白
+	const CDN_TEMPLATES = [
+		(v: string) => `https://cdn.staticfile.org/twikoo/${v}/twikoo.all.min.js`,
+		(v: string) => `https://cdn.jsdelivr.net/npm/twikoo@${v}/dist/twikoo.all.min.js`,
+		(v: string) => `https://unpkg.com/twikoo@${v}/dist/twikoo.all.min.js`,
+	];
+
+	let version = "1.6.44";
+	let started = false;
+
+	function renderMessage(text: string) {
+		// 注意：twikoo.init 成功后会整个替换 #tcomment 节点，
+		// 所以出错提示必须挂到外层 #tcomment-wrap 上。
+		const wrap = document.getElementById("tcomment-wrap");
+		if (!wrap) return;
+		const box = document.createElement("div");
+		box.style.cssText = "padding:8px 0;color:#888;font-size:14px;line-height:1.8;";
+		box.textContent = text;
+		wrap.replaceChildren(box);
+	}
+
+	function reportError(e: unknown) {
+		console.error("[twikoo] 评论加载失败", e);
+		const detail = e instanceof Error ? e.message : String(e);
+		renderMessage(`评论加载失败：${detail}`);
+	}
+
+	function mount(): boolean {
+		const wrap = document.getElementById("tcomment-wrap");
+		if (!wrap) return true; // 本页没有评论区
+
+		const tk = (window as unknown as { twikoo?: TwikooGlobal }).twikoo;
+		if (!tk) return false;
+
+		const envId = wrap.dataset.envId || "";
+		// Twikoo 只认完整 URL；否则会当成腾讯 CloudBase 环境 ID，报 INVALID_APP_SIGN 且不渲染
+		if (!/^https?:\/\//i.test(envId)) {
+			renderMessage(
+				`评论后端地址无效：「${envId || "(空)"}」。请把 src/config.ts 里 twikoo.envId 设成完整的 http(s) 地址，例如 https://twikoo.austin666.top`,
+			);
+			return true;
+		}
+
+		try {
+			const ret = tk.init({
+				envId,
+				el: "#tcomment",
+				path: wrap.dataset.path || location.pathname,
+				lang: wrap.dataset.lang || "zh-CN",
+			});
+			if (ret && typeof (ret as Promise<void>).catch === "function") {
+				(ret as Promise<void>).catch(reportError);
+			}
+		} catch (e) {
+			reportError(e);
+		}
+		return true;
+	}
+
+	function loadScript(index: number) {
+		if (index >= CDN_TEMPLATES.length) {
+			renderMessage("评论组件（Twikoo）加载失败，请检查网络或 CDN 是否可访问。");
+			return;
+		}
+		const script = document.createElement("script");
+		script.src = CDN_TEMPLATES[index](version);
+		script.async = true;
+		script.onload = () => {
+			if (!mount()) loadScript(index + 1);
+		};
+		script.onerror = () => {
+			script.remove();
+			loadScript(index + 1);
+		};
+		document.head.appendChild(script);
+	}
+
+	function boot() {
+		const wrap = document.getElementById("tcomment-wrap");
+		if (!wrap || started) return;
+		started = true;
+		version = wrap.dataset.version || "1.6.44";
+		if (mount()) return;
+		loadScript(0);
+	}
+
+	if (document.readyState === "loading") {
+		document.addEventListener("DOMContentLoaded", boot, { once: true });
+	} else {
+		boot();
+	}
+</script>
