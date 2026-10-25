@@ -1,0 +1,64 @@
+/* Artalk 评论区 + 用户须知（只在 Artalk 组件渲染时被 <link> 引入） */
+
+/* 把 Artalk 的蓝色主色换成站点粉色。
+   Artalk.init 会把 #artalk 替换成 .artalk，所以用外层 #artalk-wrap 限域。 */
+#artalk-wrap .artalk,
+#artalk-wrap .atk-layer-wrap,
+#artalk-wrap .atk-dark-mode {
+	--at-color-main: #ec4899;
+	--at-color-light: #ec4899;
+}
+
+.cc {
+	padding: 4px 2px 8px;
+}
+.cc-title {
+	font-size: 1.02rem;
+	font-weight: 600;
+	margin: 0 0 10px;
+}
+.cc-list {
+	margin: 0 0 14px;
+	padding-left: 1.1em;
+	font-size: 0.88rem;
+	line-height: 1.85;
+	color: rgba(0, 0, 0, 0.7);
+}
+.dark .cc-list {
+	color: rgba(255, 255, 255, 0.75);
+}
+.cc-actions {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	flex-wrap: wrap;
+}
+.cc-agree {
+	border: none;
+	border-radius: 9999px;
+	padding: 8px 20px;
+	font-size: 0.88rem;
+	font-weight: 600;
+	color: #fff;
+	background: #ec4899;
+	cursor: pointer;
+	transition: filter 0.15s ease;
+}
+.cc-agree:hover {
+	filter: brightness(1.08);
+}
+.cc-hint {
+	font-size: 0.8rem;
+	color: rgba(0, 0, 0, 0.45);
+}
+.dark .cc-hint {
+	color: rgba(255, 255, 255, 0.45);
+}
+.cc-status {
+	margin: 8px 0 0;
+	font-size: 0.85rem;
+	color: rgba(0, 0, 0, 0.55);
+}
+.dark .cc-status {
+	color: rgba(255, 255, 255, 0.55);
+}

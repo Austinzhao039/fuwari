@@ -1,0 +1,14 @@
+# Artalk 评论后端（Docker Compose）
+# 用法：把本目录整个上传到服务器（如 /opt/artalk），然后 `docker compose up -d`
+services:
+  artalk:
+    image: artalk/artalk-go:2.10.0
+    container_name: artalk
+    restart: unless-stopped
+    # 只监听本机，由 nginx 反代到 https://www.austin666.top/comments-api/
+    ports:
+      - "127.0.0.1:23366:23366"
+    volumes:
+      - ./artalk.yml:/conf/artalk.yml:ro
+      - ./data:/data
+    command: ["server", "-c", "/conf/artalk.yml"]

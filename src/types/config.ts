@@ -104,10 +104,28 @@ export type BlogPostData = {
 
 export type CommentConfig = {
 	/** 用哪套评论：twikoo = 自建后端；giscus = GitHub Discussions（必须登录才能评论） */
-	provider?: "twikoo" | "giscus";
+	provider?: "twikoo" | "giscus" | "artalk";
 	twikoo?: TwikooConfig;
 	giscus?: GiscusConfig;
+	artalk?: ArtalkConfig;
+	consent?: CommentConsentConfig;
 	moderation?: CommentModerationConfig;
+};
+
+// Artalk 自建评论（支持 GitHub OAuth 登录、IP 属地、浏览器信息）
+type ArtalkConfig = {
+	// 后端地址，例如 https://www.austin666.top/comments-api
+	server: string;
+	// 站点名，要和后端 site_default 一致
+	site: string;
+};
+
+// 首次评论前必须同意的《用户须知》
+type CommentConsentConfig = {
+	version: string;
+	title: string;
+	items: string[];
+	agree: string;
 };
 
 // 评论审核提示（真正的审核逻辑在 Twikoo 后台：AKISMET_KEY=MANUAL_REVIEW）

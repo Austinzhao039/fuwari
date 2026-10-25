@@ -1,0 +1,143 @@
+---
+import { commentConfig } from "@/config";
+
+const artalk = commentConfig.artalk;
+const consent = commentConfig.consent;
+const { post } = Astro.props;
+const pageKey = `/posts/${post.slug}`;
+const consentVersion = consent?.version ?? "1";
+---
+
+<section
+	class="card-base p-6 mb-4"
+	id="artalk-wrap"
+	data-server={artalk?.server ?? ""}
+	data-site={artalk?.site ?? ""}
+	data-page-key={pageKey}
+	data-page-title={post.data.title}
+	data-consent-version={consentVersion}
+>
+	<!-- 同意书：未点「同意」之前不会加载任何评论组件，也就发不出去 -->
+	<div id="comment-consent" class="cc" hidden>
+		<h3 class="cc-title">{consent?.title ?? "评论前请阅读"}</h3>
+		<ul class="cc-list">
+			{(consent?.items ?? []).map((t) => <li>{t}</li>)}
+		</ul>
+		<div class="cc-actions">
+			<button type="button" class="cc-agree" id="cc-agree">{consent?.agree ?? "我已阅读并同意"}</button>
+			<span class="cc-hint">不同意也可以只看不评论</span>
+		</div>
+	</div>
+
+	<div id="artalk"></div>
+	<p id="artalk-status" class="cc-status" hidden></p>
+</section>
+
+<link rel="stylesheet" href="/artalk/Artalk.css" />
+<link rel="stylesheet" href="/artalk/site.css" />
+
+<script is:inline>
+	(function () {
+		var wrap = document.getElementById("artalk-wrap");
+		if (!wrap) return;
+		var SERVER = wrap.getAttribute("data-server") || "";
+		var SITE = wrap.getAttribute("data-site") || "";
+		var PAGE_KEY = wrap.getAttribute("data-page-key") || location.pathname;
+		var PAGE_TITLE = wrap.getAttribute("data-page-title") || document.title;
+		var CONSENT_KEY = "comment-consent:" + (wrap.getAttribute("data-consent-version") || "1");
+
+		var consentBox = document.getElementById("comment-consent");
+		var statusEl = document.getElementById("artalk-status");
+		var mounted = false;
+
+		function status(text) {
+			if (!statusEl) return;
+			statusEl.textContent = text;
+			statusEl.hidden = !text;
+		}
+
+		function isDark() {
+			return document.documentElement.classList.contains("dark");
+		}
+
+		function loadScript() {
+			return new Promise(function (resolve, reject) {
+				if (window.Artalk) return resolve(window.Artalk);
+				var s = document.createElement("script");
+				s.src = "/artalk/Artalk.js";
+				s.async = true;
+				s.onload = function () {
+					window.Artalk ? resolve(window.Artalk) : reject(new Error("Artalk 未就绪"));
+				};
+				s.onerror = function () {
+					reject(new Error("Artalk 脚本加载失败"));
+				};
+				document.head.appendChild(s);
+			});
+		}
+
+		function mount() {
+			if (mounted) return;
+			mounted = true;
+			if (consentBox) consentBox.hidden = true;
+			status("评论加载中…");
+
+			// 先探活：后端没部署时给一句人话，而不是转圈
+			fetch(SERVER.replace(/\/$/, "") + "/api/v2/conf", { mode: "cors" })
+				.then(function (r) {
+					return r.ok ? r.json() : Promise.reject(new Error("HTTP " + r.status));
+				})
+				.then(function () {
+					return loadScript();
+				})
+				.then(function (Artalk) {
+					status("");
+					var instance = Artalk.init({
+						el: "#artalk",
+						server: SERVER,
+						site: SITE,
+						pageKey: PAGE_KEY,
+						pageTitle: PAGE_TITLE,
+						locale: "zh-CN",
+						darkMode: isDark(),
+					});
+					window.__artalk = instance;
+					new MutationObserver(function () {
+						if (!window.__artalk || !window.__artalk.setDarkMode) return;
+						window.__artalk.setDarkMode(isDark());
+					}).observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+				})
+				.catch(function (e) {
+					mounted = false;
+					status(
+						"评论服务暂时不可用（" +
+							(e && e.message ? e.message : "未连接") +
+							"）。管理员：请看 docs/artalk 部署说明。",
+					);
+				});
+		}
+
+		var agreed = false;
+		try {
+			agreed = localStorage.getItem(CONSENT_KEY) === "1";
+		} catch (e) {
+			agreed = false;
+		}
+
+		if (agreed) {
+			mount();
+		} else if (consentBox) {
+			consentBox.hidden = false;
+			var btn = document.getElementById("cc-agree");
+			if (btn) {
+				btn.addEventListener("click", function () {
+					try {
+						localStorage.setItem(CONSENT_KEY, "1");
+					} catch (e) {}
+					mount();
+				});
+			}
+		}
+	})();
+</script>
+

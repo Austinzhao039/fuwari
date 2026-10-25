@@ -1,0 +1,84 @@
+# Artalk 配置（生产）—— 放到服务器 /opt/artalk/artalk.yml
+host: "0.0.0.0"
+port: 23366
+
+# JWT 签名密钥：随便生成一串 40 位以上的随机字符，别泄露
+app_key: "请改成你自己的随机字符串-至少40位-不要用默认值"
+
+debug: false
+locale: zh-CN
+timezone: Asia/Shanghai
+
+# 站点
+site_default: "Austin 的博客"
+site_url: "https://www.austin666.top"
+
+db:
+  type: sqlite
+  file: /data/artalk.db
+
+log:
+  enabled: true
+  filename: /data/artalk.log
+
+cache:
+  enabled: false
+
+# 允许哪些站点来源调用（博客域名 + 本地预览）
+trusted_domains:
+  - "https://www.austin666.top"
+  - "https://austin666.top"
+  - "http://127.0.0.1:8901"
+  - "http://localhost:4321"
+
+# 真实 IP：站点在 CDN / nginx 后面，必须从这些头里取，否则拿到的是 127.0.0.1
+http:
+  proxy_header: "X-Forwarded-For"
+
+# IP 属地（评论里显示「上海电信」这类信息）
+ip_region:
+  enabled: true
+  db_path: /data/ip2region.xdb
+  precision: city
+
+# 登录 / 评论权限
+auth:
+  enabled: true
+  # false = 必须登录才能评论
+  anonymous: false
+  # 回调地址要和 GitHub OAuth App 里填的一致
+  callback: "https://www.austin666.top/comments-api/api/v2/auth/{provider}/callback"
+  email:
+    enabled: false
+    verify_subject: "验证码 - {{code}}"
+    verify_tpl: default
+  github:
+    enabled: true
+    client_id: "填 GitHub OAuth App 的 Client ID"
+    client_secret: "填 GitHub OAuth App 的 Client Secret"
+
+# 验证码（已强制登录，不需要再叠一层）
+captcha:
+  enabled: false
+  always: false
+
+# 审核 + 违禁词
+moderator:
+  # true = 所有新评论先待审；false = 直接公开（只拦命中违禁词的）
+  pending_default: false
+  keywords:
+    enabled: true
+    # 命中后进待审队列（false 则直接拒绝）
+    pending: true
+    files:
+      - /data/keywords.txt
+    file_sep: "\n"
+    replace_to: ""
+
+# 前端展示（头像走国内镜像，gravatar.com 在境内常常打不开）
+frontend:
+  gravatar:
+    mirror: "https://cravatar.cn/avatar/"
+    params: "sha256=1&d=mp&s=240"
+  vote: true
+  editorTravel: true

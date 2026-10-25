@@ -101,10 +101,17 @@ const twikooEnvId = /^https?:\/\/\S+$/i.test(twikooEnvOverride ?? "")
 	? (twikooEnvOverride as string)
 	: DEFAULT_TWIKOO_ENV_ID;
 
-// twikoo | giscus。默认用 giscus：必须登录 GitHub 才能发评论。
-// 想临时退回 Twikoo：构建时加 COMMENT_PROVIDER=twikoo，或改下面的默认值。
-const commentProvider: "twikoo" | "giscus" =
-	envBag?.COMMENT_PROVIDER === "twikoo" ? "twikoo" : "giscus";
+// twikoo | giscus | artalk
+// - giscus：GitHub 官方 OAuth，必须登录才能评论；但拿不到访客 IP/UA，也塞不进同意书
+// - artalk：自建（deploy/artalk/），GitHub OAuth + IP 属地 + 浏览器信息 + 同意书全部支持
+// - twikoo：最早的自建方案，只有昵称/邮箱表单
+// 后端部署好之前保持 giscus，避免评论区空窗；部署完用 COMMENT_PROVIDER=artalk 构建即可。
+const providerEnv = envBag?.COMMENT_PROVIDER;
+const commentProvider: "twikoo" | "giscus" | "artalk" =
+	providerEnv === "artalk" || providerEnv === "twikoo" ? providerEnv : "giscus";
+
+// 本地联调时可指向 http://127.0.0.1:23366
+const artalkServer = (envBag?.ARTALK_SERVER || "https://www.austin666.top/comments-api").replace(/\/+$/, "");
 
 export const commentConfig: CommentConfig = {
 	provider: commentProvider,
@@ -137,5 +144,23 @@ export const commentConfig: CommentConfig = {
 		// 与后台 AKISMET_KEY=MANUAL_REVIEW 对应：开了审核就置 true，前端会提示访客
 		reviewRequired: true,
 		notice: "评论提交后需经审核，通过后才会显示。",
+	},
+	artalk: {
+		// 自建评论后端，部署见 deploy/artalk/README.md
+		server: artalkServer,
+		site: "Austin 的博客",
+	},
+	consent: {
+		// 改了文案/条款就改版本号，访客会重新看到同意书
+		version: "2026-10-25",
+		title: "评论前请阅读",
+		items: [
+			"发表评论时，会记录并保存你的 IP 地址和浏览器信息（User-Agent）。",
+			"IP 地址不会公开显示，评论区只显示到省市与运营商的归属地，例如「上海电信」。",
+			"浏览器与系统信息会随评论一起公开显示，例如「Chrome 141 / Windows 10」。",
+			"你填写的昵称、网址会随评论公开；邮箱仅用于生成头像，不会明文展示。",
+			"以上信息只用于展示评论来源和拦截垃圾评论，不作其他用途；需要删除请联系站长。",
+		],
+		agree: "我已阅读并同意",
 	},
 };
