@@ -1,11 +1,12 @@
 ---
-import { commentConfig, siteConfig } from "@/config";
+import { commentConfig, profileConfig, siteConfig } from "@/config";
 
 const twikoo = commentConfig.twikoo;
 const envId = twikoo?.envId ?? "";
 const version = twikoo?.version ?? "1.6.44";
 const giscus = commentConfig.giscus;
 const giscusReady = Boolean(giscus?.categoryId);
+const ownerLogin = (giscus?.repo ?? "").split("/")[0] || "";
 ---
 
 <!doctype html>
@@ -23,6 +24,8 @@ const giscusReady = Boolean(giscus?.categoryId);
 		data-version={version}
 		data-giscus-ready={giscusReady ? "1" : "0"}
 		data-giscus-repo={giscus?.repo ?? ""}
+		data-owner-login={ownerLogin}
+		data-owner-name={profileConfig.name}
 	>
 		<!-- ===== 登录层 ===== -->
 		<div class="login-mask" id="loginMask" hidden>
@@ -60,6 +63,7 @@ const giscusReady = Boolean(giscus?.categoryId);
 			<button class="view-tab active" data-view="dashboard" type="button">仪表盘</button>
 			<button class="view-tab" data-view="comments" type="button">评论管理</button>
 			<button class="view-tab" data-view="users" type="button">用户管理</button>
+			<button class="view-tab" data-view="admins" type="button">管理员</button>
 			<button class="view-tab" data-view="automation" type="button">自动化规则</button>
 			<button class="view-tab" data-view="github" type="button">GitHub 集成</button>
 			<button class="view-tab" data-view="settings" type="button">审核设置</button>
@@ -124,6 +128,42 @@ const giscusReady = Boolean(giscus?.categoryId);
 					</fieldset>
 				</search>
 				<ul class="user-list" id="userList"></ul>
+			</section>
+
+			<!-- ===== 管理员 ===== -->
+			<section class="view-panel" id="view-admins" aria-label="管理员">
+				<header class="card section-head">
+					<h2 class="section-title">管理员名单</h2>
+					<p class="section-desc">
+						登记哪些账号是管理员。他们的评论会带上「管理员」标签，方便在评论区一眼认出来。
+					</p>
+				</header>
+
+				<form class="card setting-group" id="adminForm" autocomplete="off">
+					<fieldset>
+						<legend class="section-title">添加管理员</legend>
+						<p class="setting-row">
+							<span class="label-desc">
+								<label for="adminUsername">用户名</label>
+								<small>GitHub 账号名，或评论里的昵称</small>
+							</span>
+							<input class="setting-input" id="adminUsername" type="text" placeholder="Austinzhao039" />
+						</p>
+						<p class="setting-row">
+							<span class="label-desc">
+								<label for="adminName">名字</label>
+								<small>对外显示的名字</small>
+							</span>
+							<input class="setting-input" id="adminName" type="text" placeholder="Austin666" />
+						</p>
+						<p class="form-actions">
+							<button class="btn btn-primary btn-sm" type="submit">添加</button>
+							<button class="btn btn-ghost btn-sm" type="button" id="adminSelfBtn">一键填入我自己</button>
+						</p>
+					</fieldset>
+				</form>
+
+				<ul class="user-list" id="adminList"></ul>
 			</section>
 
 			<!-- ===== 自动化规则 ===== -->
@@ -385,6 +425,7 @@ const giscusReady = Boolean(giscus?.categoryId);
 				let TOKEN = sessionStorage.getItem(TOKEN_KEY) || "";
 				let COMMENTS = [];
 				let CONFIG = {};
+				let ADMINS = [];
 				let LOGS = [];
 				const state = {
 					view: "dashboard",
@@ -517,10 +558,26 @@ const giscusReady = Boolean(giscus?.categoryId);
 				async function refresh() {
 					try {
 						await Promise.all([loadAll(), loadConfig()]);
+						parseAdmins();
 						renderAll();
 					} catch (e) {
 						toast(e.message || "加载失败");
 					}
+				}
+
+				// 管理员名单存在 Twikoo 配置的 ADMINS 键里（JSON 字符串），只有管理员能读
+				function parseAdmins() {
+					try {
+						const v = JSON.parse(CONFIG.ADMINS || "[]");
+						ADMINS = Array.isArray(v) ? v.filter((a) => a && a.username) : [];
+					} catch (e) {
+						ADMINS = [];
+					}
+				}
+				function isAdminComment(c) {
+					if (c.master) return true;
+					const keys = [c.nick, c.uid].filter(Boolean).map((x) => String(x).toLowerCase());
+					return ADMINS.some((a) => keys.includes(String(a.username).toLowerCase()));
 				}
 
 				/* ---------- 派生数据 ---------- */
@@ -613,7 +670,7 @@ const giscusReady = Boolean(giscus?.categoryId);
 
 				function commentItem(c) {
 					const badges = [
-						c.master ? '<span class="badge badge-master">博主</span>' : "",
+						isAdminComment(c) ? '<span class="badge badge-master">管理员</span>' : "",
 						c.top ? '<span class="badge badge-top">置顶</span>' : "",
 						c.isSpam ? '<span class="badge badge-pending">待审核</span>' : "",
 					]
@@ -687,6 +744,13 @@ const giscusReady = Boolean(giscus?.categoryId);
                     <section class="user-info">
                       <p class="user-name-row">
                         <strong class="user-name">${esc(u.nick)}</strong>
+                        ${
+													ADMINS.some(
+														(a) => String(a.username).toLowerCase() === String(u.nick).toLowerCase(),
+													)
+														? `<span class="badge badge-master">管理员</span>`
+														: ""
+												}
                         ${spam ? `<span class="badge badge-pending">${spam} 条待审</span>` : ""}
                       </p>
                       <p class="user-meta">${u.comments.length} 条评论 · ${esc(u.ipRegion || u.ip || "未知地区")} · 最近 ${fmtTime(u.last)}</p>
@@ -695,6 +759,35 @@ const giscusReady = Boolean(giscus?.categoryId);
 								})
 								.join("")
 						: `<li class="list-empty">暂无用户</li>`;
+				}
+
+				function renderAdmins() {
+					$("#adminList").innerHTML = ADMINS.length
+						? ADMINS.map(
+								(a, i) => `
+            <li class="card user-card">
+              <figure class="avatar sm">${initial(a.name || a.username)}</figure>
+              <section class="user-info">
+                <p class="user-name-row">
+                  <strong class="user-name">${esc(a.name || a.username)}</strong>
+                  <span class="badge badge-master">管理员</span>
+                </p>
+                <p class="user-meta">@${esc(a.username)} · 登记于 ${fmtTime(a.addedAt || Date.now())}</p>
+              </section>
+              <button class="btn btn-danger btn-sm" data-del-admin="${i}" type="button">移除</button>
+            </li>`,
+							)
+							.join("")
+						: `<li class="list-empty">还没有登记管理员 —— 用上面的表单添加，或点「一键填入我自己」</li>`;
+				}
+
+				async function saveAdmins(next, logText) {
+					const payload = JSON.stringify(next);
+					await apiOk("SET_CONFIG", { config: { ADMINS: payload } });
+					CONFIG.ADMINS = payload;
+					ADMINS = next;
+					renderAll();
+					if (logText) addLog("config", logText);
 				}
 
 				function renderRules() {
@@ -789,6 +882,7 @@ const giscusReady = Boolean(giscus?.categoryId);
 					renderStats();
 					renderComments();
 					renderUsers();
+					renderAdmins();
 					renderRules();
 					renderSettings();
 					renderGithub();
@@ -973,8 +1067,48 @@ const giscusReady = Boolean(giscus?.categoryId);
 					state.userKeyword = e.target.value;
 					renderUsers();
 				});
-				$("#bulkApprove").addEventListener("click", () => bulk("approve"));
-				$("#bulkHide").addEventListener("click", () => bulk("hide"));
+				$("#adminForm").addEventListener("submit", async (e) => {
+					e.preventDefault();
+					const username = $("#adminUsername").value.trim();
+					const name = $("#adminName").value.trim() || username;
+					if (!username) return toast("先填用户名");
+					if (ADMINS.some((a) => String(a.username).toLowerCase() === username.toLowerCase()))
+						return toast("这个用户名已经在名单里了");
+					try {
+						await saveAdmins(
+							[...ADMINS, { username, name, addedAt: Date.now() }],
+							`登记管理员 <b>${esc(name)}</b>（@${esc(username)}）`,
+						);
+						$("#adminUsername").value = "";
+						$("#adminName").value = "";
+						toast("已添加");
+					} catch (err) {
+						toast(err.message || "添加失败");
+					}
+				});
+				$("#adminSelfBtn").addEventListener("click", () => {
+					$("#adminUsername").value = document.body.dataset.ownerLogin || "";
+					$("#adminName").value = document.body.dataset.ownerName || "";
+					$("#adminUsername").focus();
+				});
+				document.addEventListener("click", async (e) => {
+					const del = e.target.closest("[data-del-admin]");
+					if (!del) return;
+					const idx = Number(del.dataset.delAdmin);
+					const a = ADMINS[idx];
+					if (!a || !confirm(`把 ${a.name || a.username} 从管理员名单里移除？`)) return;
+					try {
+						await saveAdmins(
+							ADMINS.filter((_, i) => i !== idx),
+							`移除管理员 <b>${esc(a.name || a.username)}</b>`,
+						);
+						toast("已移除");
+					} catch (err) {
+						toast(err.message || "移除失败");
+					}
+				});
+
+				$("#bulkApprove").addEventListener("click", () => bulk("approve"));				$("#bulkHide").addEventListener("click", () => bulk("hide"));
 				$("#bulkDelete").addEventListener("click", () => bulk("delete"));
 				$("#settingsForm").addEventListener("submit", (e) => {
 					e.preventDefault();
