@@ -44,7 +44,7 @@ const themeDark = base && version.dark ? `${base}/dark.css?v=${version.dark}` : 
 				data-mapping={giscus!.mapping ?? "pathname"}
 				data-strict={giscus!.strict ?? "0"}
 				data-reactions-enabled={giscus!.reactionsEnabled ?? "1"}
-				data-emit-metadata="0"
+				data-emit-metadata="1"
 				data-input-position={giscus!.inputPosition ?? "top"}
 				data-theme="light"
 				data-lang={giscus!.lang ?? "zh-CN"}
@@ -67,7 +67,6 @@ const themeDark = base && version.dark ? `${base}/dark.css?v=${version.dark}` : 
 		if (!wrap) return;
 		var LIGHT = wrap.getAttribute("data-theme-light") || "";
 		var DARK = wrap.getAttribute("data-theme-dark") || "";
-		var current = null;
 		var sentFor = "";
 
 		function isDark() {
@@ -83,32 +82,53 @@ const themeDark = base && version.dark ? `${base}/dark.css?v=${version.dark}` : 
 			);
 		}
 
+		function custom() {
+			return isDark() ? DARK : LIGHT;
+		}
+
+		// giscus 自己在 iframe 里要等 React 挂载 + 拉完 GitHub 数据才装 message 监听，
+		// 太早发的消息会被直接丢掉。所以第一次发现 iframe 后按节奏补发几次：
+		// 发同一个主题是幂等的（React state 不变不会重建 <link>），多发没有副作用。
+		var bursting = false;
+		function burst() {
+			if (bursting) return;
+			bursting = true;
+			[300, 900, 1800, 3200, 5000, 7500, 11000, 15000, 20000, 26000, 32000].forEach(function (ms) {
+				window.setTimeout(function () {
+					send(custom());
+				}, ms);
+			});
+			window.setTimeout(function () {
+				bursting = false;
+			}, 33000);
+		}
+
 		function apply(force) {
 			var frame = document.querySelector("iframe.giscus-frame");
 			if (!frame) return;
-			// 懒加载的 iframe 插入时还没 load，消息会被丢掉；等它 load 完再发一次
 			if (!frame.__giscusThemeHooked) {
 				frame.__giscusThemeHooked = true;
 				frame.addEventListener("load", function () {
-					apply(true);
+					send(custom());
+					burst();
 				});
+				// 懒加载：iframe 只有滚到附近才真正去加载
+				burst();
 			}
-			var dark = isDark();
-			var custom = dark ? DARK : LIGHT;
-			var key = (dark ? "d" : "l") + custom;
-			if (!force && frame === current && key === sentFor) return;
-			current = frame;
+			var key = (isDark() ? "d" : "l") + custom();
+			if (!force && key === sentFor) return;
 			sentFor = key;
-			// 先发内置主题（保证一定有样式），再发带徽章的自定义主题
-			send(dark ? "dark" : "light");
-			if (custom) {
+			// 站点切主题时：先发内置主题（保证一定有样式），再补发带徽章的自定义主题。
+			// 多次补发是因为两个 <link> 谁先 load 完不确定，谁后到谁生效，多发几次让它收敛到自定义主题。
+			send(isDark() ? "dark" : "light");
+			[250, 1000, 2200].forEach(function (ms) {
 				window.setTimeout(function () {
-					send(custom);
-				}, 200);
-			}
+					send(custom());
+				}, ms);
+			});
 		}
 
-		// iframe 是异步插入 / 懒加载的，用观察器等它出现
+		// iframe 是异步插入的，用观察器等它出现
 		var pending = false;
 		new MutationObserver(function () {
 			if (pending) return;
@@ -119,18 +139,19 @@ const themeDark = base && version.dark ? `${base}/dark.css?v=${version.dark}` : 
 			});
 		}).observe(document.body, { childList: true, subtree: true });
 
+		// giscus 渲染完 discussion 会回一条 metadata 消息（开了 data-emit-metadata），
+		// 这时它的 message 监听一定已经装好，是最可靠的换主题时机
+		window.addEventListener("message", function (event) {
+			if (event.origin !== "https://giscus.app") return;
+			var data = event.data && event.data.giscus;
+			if (!data || !(data.discussion || data.error)) return;
+			send(custom());
+		});
+
 		// 站点切深浅色时同步
 		new MutationObserver(function () {
 			apply(true);
 		}).observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
-
-		// 兜底：data-loading="lazy" 的 iframe 只有滚到附近才真正加载，
-		// 这里前 20 秒每 0.8 秒补发一次（apply 内部会去重，不会刷屏）
-		var tries = 0;
-		var timer = window.setInterval(function () {
-			apply(false);
-			if (++tries > 25) window.clearInterval(timer);
-		}, 800);
 
 		window.addEventListener("load", function () {
 			apply(true);
