@@ -461,7 +461,50 @@ const newDiscussionUrl =
 					inp.readOnly = true;
 				});
 			}
+			syncAvatars();
 			injectBadges();
+		}
+
+		/**
+		 * 头像一律用 GitHub 的。
+		 * 坑一：Twikoo 的 COMMENT_SUBMIT 会把前端传过去的 avatar 字段丢掉（实测过：提交后
+		 * 数据库里根本没有 avatar 这一项），公开列表拿不到头像就退回 gravatar 占位图。
+		 * 坑二：avatars.githubusercontent.com/<用户名> 不认用户名，只会返回默认像素图，
+		 * 必须用 github.com/<用户名>.png —— 它会 302 到带数字 ID 的真头像，
+		 * 不存在的用户返回 404，正好走 onerror 回退成原来的 gravatar。
+		 */
+		const ghAvatar = (login: string) => `https://github.com/${encodeURIComponent(login)}.png?size=80`;
+
+		function swapAvatar(img: HTMLImageElement, url: string) {
+			if (!url) return;
+			// 两个条件都满足才跳过：Vue 有可能把 src 改回去，只认 dataset 会漏
+			if (img.dataset.hcAvatar === url && img.getAttribute("src") === url) return;
+			img.dataset.hcAvatar = url;
+			const fallback = img.getAttribute("src") || "";
+			img.onerror = () => {
+				img.onerror = null;
+				if (fallback && fallback !== url) img.src = fallback;
+			};
+			img.src = url;
+		}
+
+		function syncAvatars() {
+			const root = scopeRoot();
+			if (!root) return;
+			// 自己：用 giscus 给的精确头像地址（带数字 ID，最准）
+			if (identity?.avatarUrl) {
+				root
+					.querySelectorAll<HTMLImageElement>(".tk-submit img.tk-avatar-img")
+					.forEach((img) => swapAvatar(img, identity!.avatarUrl));
+			}
+			// 别人：现在必须登录 GitHub 才能评论，所以昵称就是 GitHub 用户名
+			root.querySelectorAll<HTMLElement>(".tk-comment").forEach((el) => {
+				const nickEl = el.querySelector<HTMLElement>(".tk-nick, .tk-nick-link");
+				const nick = (nickEl?.textContent || "").trim();
+				if (!/^[A-Za-z0-9-]{1,39}$/.test(nick)) return;
+				const img = el.querySelector<HTMLImageElement>("img.tk-avatar-img");
+				if (img) swapAvatar(img, ghAvatar(nick));
+			});
 		}
 
 		function injectBadges() {
@@ -488,7 +531,13 @@ const newDiscussionUrl =
 			if (timer) window.clearTimeout(timer);
 			timer = window.setTimeout(syncEditor, 120);
 		};
-		new MutationObserver(schedule).observe(wrap, { childList: true, subtree: true });
+		// 连 src 属性一起听：Vue 有时只改属性不加节点，头像会被改回 gravatar
+		new MutationObserver(schedule).observe(wrap, {
+			childList: true,
+			subtree: true,
+			attributes: true,
+			attributeFilter: ["src"],
+		});
 
 		// ---------- 用户须知 ----------
 		const consentVersion = wrap.dataset.consentVersion || "";

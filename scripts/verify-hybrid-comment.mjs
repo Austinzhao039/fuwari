@@ -118,6 +118,7 @@ async function main() {
 				inputs,
 				badges: root.querySelectorAll('.hc-badge').length,
 				extras: [...root.querySelectorAll('.tk-extra-text')].slice(0,4).map(e => e.textContent.trim()),
+				avatars: [...root.querySelectorAll('img.tk-avatar-img')].map(i => i.getAttribute('src')).slice(0, 4),
 				// 排障用：Twikoo 到底加载了没有、容器里写着什么
 				twikooLoaded: typeof window.twikoo,
 				tcommentText: (root.innerText || '').slice(0, 220),
@@ -185,6 +186,15 @@ async function main() {
 		return { stored: localStorage.getItem('comment_consent_v1'), version: document.getElementById('hybrid-comment').dataset.consentVersion };
 	})()`);
 	console.log("[4] 同意后：", afterAgree);
+
+	// 同意后会自动补一次发送，等评论真的落地，看看头像是不是 GitHub 的
+	await sleep(4000);
+	const posted = await probe();
+	console.log("[4b] 提交后：", {
+		comments: posted.comments,
+		avatars: posted.avatars,
+		text: posted.tcommentText.split("\n").filter(Boolean).slice(-6),
+	});
 
 	await evaluate(`document.getElementById('hybrid-comment').scrollIntoView({ block: 'start' }); 'ok'`);
 	await sleep(800);
