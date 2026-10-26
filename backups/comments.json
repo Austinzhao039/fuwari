@@ -1,0 +1,19 @@
+{
+  "exportedAt": "2026-10-26T11:29:28.257Z",
+  "endpoint": "https://twikoo.austin666.top/",
+  "count": 1,
+  "comments": [
+    {
+      "id": "96b6c963a32247b7975017450cf17686",
+      "nick": "地区探针",
+      "link": "",
+      "comment": "检查 IP 归属地与浏览器字段",
+      "url": "/posts/giscus-field-probe",
+      "created": 1792921331620,
+      "updated": 1792921331620,
+      "ua": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+      "ipRegion": "上海 上海市 联通",
+      "master": false
+    }
+  ]
+}

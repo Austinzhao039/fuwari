@@ -103,6 +103,9 @@ const newDiscussionUrl =
 	<div id="tcomment">
 		<div class="hc-loading">评论加载中…</div>
 	</div>
+
+	<!-- 轻提示：上传体积超限之类的 -->
+	<div class="hc-toast" id="hc-toast" hidden></div>
 </section>
 
 <!-- GitHub 登录弹层 -->
@@ -237,6 +240,30 @@ const newDiscussionUrl =
 	}
 	:global(html.dark) #hybrid-comment .tk-meta-input input[readonly] {
 		color: rgba(255, 255, 255, 0.45) !important;
+	}
+	/* 评论区右上角那两个小图标：第一个是「刷新评论」，第二个是 Twikoo 自带的管理面板（齿轮）。
+	   管理走我们自己的 /admin，所以齿轮藏掉。想连刷新一起去掉，把下面的相邻选择器
+	   改成 `#hybrid-comment .tk-icon.__comments { display:none !important }` 即可。 */
+	#hybrid-comment .tk-icon + .tk-icon {
+		display: none !important;
+	}
+	#hybrid-comment .hc-toast {
+		position: fixed;
+		left: 50%;
+		bottom: 2rem;
+		transform: translateX(-50%);
+		z-index: 1000;
+		max-width: min(560px, 92vw);
+		padding: 0.6rem 1rem;
+		border-radius: 999px;
+		background: rgba(24, 24, 27, 0.92);
+		color: #fff;
+		font-size: 0.85rem;
+		line-height: 1.6;
+		box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+	}
+	#hybrid-comment .hc-toast[hidden] {
+		display: none !important;
 	}
 	/* 管理员徽章（后台管理员名单匹配 GitHub 昵称） */
 	#hybrid-comment .hc-badge {
@@ -383,6 +410,19 @@ const newDiscussionUrl =
 		const ghHost = document.getElementById("hc-giscus-host");
 		const ghHint = document.getElementById("hc-gh-hint");
 		const consentModal = document.getElementById("hc-consent-modal");
+
+		// ---------- 轻提示 ----------
+		let toastTimer: number | undefined;
+		function toast(text: string) {
+			const el = document.getElementById("hc-toast");
+			if (!el) return;
+			el.textContent = text;
+			el.hidden = false;
+			if (toastTimer) window.clearTimeout(toastTimer);
+			toastTimer = window.setTimeout(() => {
+				el.hidden = true;
+			}, 5000);
+		}
 
 		let admins: { login: string; name?: string }[] = [];
 		try {
@@ -653,6 +693,37 @@ const newDiscussionUrl =
 			true,
 		);
 
+		// ---------- 上传体积把关 ----------
+		// Twikoo 的图片按钮走的是 <input type="file">，在捕获阶段拦一道，超限直接拦下。
+		const MAX_IMAGE = 5 * 1024 * 1024; // 5MB
+		const MAX_VIDEO = 20 * 1024 * 1024; // 20MB（Twikoo 本身不传视频，只用来提示）
+		wrap.addEventListener(
+			"change",
+			(e) => {
+				const input = e.target as HTMLInputElement | null;
+				if (!input || input.type !== "file") return;
+				const file = input.files?.[0];
+				if (!file) return;
+				const isVideo =
+					/^video\//i.test(file.type) || /\.(mp4|webm|mov|m4v|avi|mkv|flv)$/i.test(file.name);
+				if (isVideo) {
+					// 拦在冒泡到 Vue 之前，避免它真的去请求图床
+					e.stopPropagation();
+					e.preventDefault();
+					input.value = "";
+					toast(`评论区不支持直接上传视频（上限 ${MAX_VIDEO / 1024 / 1024}MB）。请先把视频传到 B 站/YouTube，再在评论里贴链接。`);
+					return;
+				}
+				if (file.size > MAX_IMAGE) {
+					e.stopPropagation();
+					e.preventDefault();
+					input.value = "";
+					toast(`图片不能超过 5MB，这张是 ${(file.size / 1024 / 1024).toFixed(1)}MB，压缩一下再传。`);
+				}
+			},
+			true,
+		);
+
 		// ---------- giscus 登录 ----------
 		let giscusLoaded = false;
 		function loadGiscus() {
@@ -683,13 +754,30 @@ const newDiscussionUrl =
 
 			// 迟迟收不到身份多半是那个登录帖还没建，给个能直接点的链接
 			window.setTimeout(() => {
-				if (identity || !ghHint) return;
-				const url = wrap.dataset.newDiscussion || "";
-				ghHint.hidden = false;
-				ghHint.textContent = url
-					? `没看到登录入口？多半是仓库里还没有标题为「${wrap.dataset.term}」的帖子，点这里创建后重试：${url}`
-					: "没看到登录入口？请检查 giscus 仓库配置。";
+				if (identity) return;
+				showNeedDiscussion();
 			}, 9000);
+		}
+
+		/**
+		 * giscus 报 “Discussion not found” 的唯一原因是仓库里还没有那个登录专用帖。
+		 * 这里直接把「点这里创建」摆出来，而不是留一个空白 iframe 让人猜。
+		 */
+		function showNeedDiscussion() {
+			if (!ghHint) return;
+			const url = wrap.dataset.newDiscussion || "";
+			if (!url) return;
+			ghHint.hidden = false;
+			ghHint.replaceChildren();
+			const tip = document.createElement("span");
+			tip.textContent = `登录入口没出来：仓库里还缺一个标题为「${wrap.dataset.term}」的帖子。`;
+			const a = document.createElement("a");
+			a.href = url;
+			a.target = "_blank";
+			a.rel = "noopener noreferrer";
+			a.textContent = "点这里创建（2 秒）→";
+			a.style.cssText = "margin-left:6px;text-decoration:underline;font-weight:600;";
+			ghHint.append(tip, a);
 		}
 
 		function openGhModal() {
@@ -730,6 +818,11 @@ const newDiscussionUrl =
 					url: data.viewer.url || `https://github.com/${data.viewer.login}`,
 				});
 				closeGhModal();
+				return;
+			}
+			// giscus 找不到帖子时只会丢一句 "Discussion not found"，立刻把创建入口摆出来
+			if (data.error && /discussion not found/i.test(data.error)) {
+				showNeedDiscussion();
 			}
 		});
 
