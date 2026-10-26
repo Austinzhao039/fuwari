@@ -1,0 +1,25 @@
+# 用自己的服务器当图床（完全免费、容量只受硬盘限制）
+#
+# 用法：
+#   1. 把 UPLOAD_TOKEN 换成一串随机字符（这就是 Twikoo 后台要填的 IMAGE_CDN_TOKEN）
+#   2. PUBLIC_BASE 换成你图片对外的访问地址
+#   3. docker compose up -d
+#
+# 注意：端口只绑 127.0.0.1，外网访问统一走 nginx（见 README 第 3 步）。
+
+services:
+  img-host:
+    build: .
+    image: fuwari-img-host:latest
+    container_name: img-host
+    restart: unless-stopped
+    environment:
+      UPLOAD_TOKEN: "请改成一串随机字符，例如 openssl rand -hex 24 的输出"
+      PUBLIC_BASE: "https://twikoo.austin666.top/img"
+      MAX_BYTES: "8388608"
+      DATA_DIR: "/data"
+      PORT: "3000"
+    volumes:
+      - ./data:/data
+    ports:
+      - "127.0.0.1:3000:3000"

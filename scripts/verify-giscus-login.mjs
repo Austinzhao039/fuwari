@@ -46,18 +46,17 @@ await evaluate("localStorage.clear(); 'ok'").catch(() => {});
 await send("Page.navigate", { url: URL_ });
 await sleep(12000);
 
-await evaluate("document.querySelector('.hc-gate__btn').click(); 'ok'");
-await sleep(20000);
+// 登录 iframe 是内嵌的，等它出现并抓 giscus 回包
+for (let i = 0; i < 30; i++) {
+	await sleep(1000);
+	if (await evaluate("!!document.querySelector('.hc-gate iframe')")) break;
+}
+await sleep(12000);
 
 const msgs = await evaluate("window.__m || []");
-console.log("giscus 消息：", JSON.stringify(msgs, null, 2).slice(0, 1600));
+console.log("giscus 消息：", JSON.stringify(msgs, null, 2).slice(0, 1200));
 console.log(
-	"提示条：",
-	await evaluate("(() => { const h = document.getElementById('hc-gh-hint'); return { hidden: h.hidden, text: h.innerText }; })()"),
+	"登录层：",
+	await evaluate("(() => { const g=document.querySelector('.hc-gate'); const h=document.querySelector('.hc-gate__hint'); return { gate: !!g, hint: h ? (h.hidden ? null : h.innerText) : null } })()"),
 );
-console.log(
-	"弹层 iframe：",
-	await evaluate("(() => { const f = document.querySelector('#hc-giscus-host iframe'); return f ? { h: f.clientHeight, w: f.clientWidth } : null; })()"),
-);
-
 ws.close();

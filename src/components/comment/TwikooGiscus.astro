@@ -108,21 +108,6 @@ const newDiscussionUrl =
 	<div class="hc-toast" id="hc-toast" hidden></div>
 </section>
 
-<!-- GitHub 登录弹层 -->
-<div class="hc-modal" id="hc-gh-modal" hidden>
-	<div class="hc-modal__box">
-		<div class="hc-modal__head">
-			<h3 class="hc-modal__title">使用 GitHub 登录</h3>
-			<button type="button" class="hc-modal__x" id="hc-gh-close" aria-label="关闭">×</button>
-		</div>
-		<p class="hc-modal__desc">
-			在下面这块区域里点 <strong>Sign in with GitHub</strong>，授权完成后这个窗口会自动关闭。
-		</p>
-		<div class="hc-modal__frame" id="hc-giscus-host"></div>
-		<p class="hc-modal__hint" id="hc-gh-hint" hidden></p>
-	</div>
-</div>
-
 <!-- 用户须知 -->
 <div class="hc-modal" id="hc-consent-modal" hidden>
 	<div class="hc-modal__box">
@@ -184,38 +169,34 @@ const newDiscussionUrl =
 		font-size: 14px;
 		color: #999;
 	}
-	/* 未登录时：编辑框留在原位、点不动，上面盖一层登录遮罩。
-	   注意 ①：twikoo.init 会把 #tcomment 整个替换掉，所以不能依赖 #tcomment 做祖先选择器。
-	   注意 ②：不能用 filter/opacity 虚化 .tk-submit —— 那会连里面的遮罩一起糊掉，
-	   虚化交给遮罩自己的 backdrop-filter 做。 */
-	#hybrid-comment.hc-locked .tk-submit {
-		pointer-events: none;
-		user-select: none;
-	}
-	#hybrid-comment .hc-gate-host {
-		position: relative;
+	/* 未登录时：把 Twikoo 输入框里的内容整体藏掉，登录层直接占用它的位置（不再是浮在上面的弹窗）。
+	   注意：twikoo.init 会把 #tcomment 整个替换掉，所以不能依赖 #tcomment 做祖先选择器。 */
+	#hybrid-comment.hc-locked .tk-submit > *:not(.hc-gate) {
+		display: none !important;
 	}
 	#hybrid-comment .hc-gate {
-		position: absolute;
-		inset: 0;
-		z-index: 5;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		padding: 0.75rem;
-		border-radius: 0.75rem;
-		background: rgba(255, 255, 255, 0.86);
-		backdrop-filter: blur(4px);
-		-webkit-backdrop-filter: blur(4px);
-		/* 父级是 pointer-events:none，这里要自己打开，否则按钮点不了 */
-		pointer-events: auto;
-	}
-	:global(html.dark) #hybrid-comment .hc-gate {
-		background: rgba(24, 24, 27, 0.84);
+		display: block;
+		padding: 0.25rem 0 0.5rem;
 	}
 	#hybrid-comment .hc-gate__inner {
 		text-align: center;
-		max-width: 24rem;
+	}
+	/* giscus 在 iframe 里，宽度跟着容器走，高度由它自己 postMessage 的 resizeHeight 决定 */
+	#hybrid-comment .hc-gate__frame {
+		margin-top: 0.5rem;
+	}
+	#hybrid-comment .hc-giscus-host,
+	#hybrid-comment .hc-giscus-host .giscus,
+	#hybrid-comment .hc-giscus-host iframe {
+		width: 100% !important;
+		max-width: 100%;
+		border: 0;
+	}
+	#hybrid-comment .hc-gate__hint {
+		margin: 0.6rem 0 0;
+		font-size: 0.78rem;
+		line-height: 1.7;
+		color: #b45309;
 	}
 	#hybrid-comment .hc-gate__title {
 		margin: 0 0 0.35rem;
@@ -406,19 +387,19 @@ const newDiscussionUrl =
 	type Identity = { login: string; avatarUrl: string; url: string } | null;
 
 		function boot(wrap: HTMLElement) {
-			// ★ 弹层/提示条必须挂到 body 上：
-			//   页面里有个 div.onload-animation 带 transform，它会成为 position:fixed 的
-			//   包含块，弹层就会被限制在那个 div 里（实测高度 3826px、盖住整页却看不到框）。
-			for (const el of [document.getElementById("hc-gh-modal"), document.getElementById("hc-toast")]) {
+			// ★ 浮层必须挂到 body 上：页面里 div.onload-animation 带 transform，
+			//   会成为 position:fixed 的包含块，弹层会被限制在那个 div 里（实测看不见框）。
+			for (const el of [document.getElementById("hc-consent-modal"), document.getElementById("hc-toast")]) {
 				if (el && el.parentElement !== document.body) document.body.appendChild(el);
 			}
 
 			const userBox = wrap.querySelector<HTMLElement>("#hc-user");
 		const avatarEl = wrap.querySelector<HTMLImageElement>("#hc-avatar");
 		const nameEl = wrap.querySelector<HTMLElement>("#hc-name");
-		const ghModal = document.getElementById("hc-gh-modal");
-		const ghHost = document.getElementById("hc-giscus-host");
-		const ghHint = document.getElementById("hc-gh-hint");
+		// giscus 的 iframe 容器只创建一次，重建登录层时把同一个节点搬过去（iframe 不会重载）
+		let giscusHost: HTMLElement | null = null;
+		let giscusParking: HTMLElement | null = null;
+		let giscusHint: HTMLElement | null = null;
 		const consentModal = document.getElementById("hc-consent-modal");
 
 		// ---------- 轻提示 ----------
@@ -504,34 +485,56 @@ const newDiscussionUrl =
 		const scopeRoot = () => wrap;
 
 		/**
-		 * 登录遮罩：直接盖在评论编辑框上面（而不是在列表上方另起一块）。
-		 * 未登录 → 编辑框留在原位变虚 + 这层遮罩显示登录入口；
-		 * 登录成功 → 遮罩移除，人就能直接在下面的输入框里写。
+		 * 登录层：直接长在评论输入框的位置上，不再弹窗。
+		 * 未登录 → Twikoo 输入框的内容整体藏起来，换成这一层（里面就是 giscus 的 GitHub 登录界面）；
+		 * 登录成功 → 整层移除，原地变成可写的 Twikoo 输入框。
 		 */
+		function ensureGiscusHost() {
+			if (!giscusHost) {
+				giscusHost = document.createElement("div");
+				giscusHost.id = "hc-giscus-host";
+				giscusHost.className = "hc-giscus-host";
+			}
+			return giscusHost;
+		}
+
+		// 把 iframe 挪进 body 里的隐藏容器：既不被登录层销毁，也保住 giscus 的登录会话
+		function detachGiscus() {
+			if (!giscusHost || !giscusHost.parentElement) return;
+			if (!giscusParking) {
+				giscusParking = document.createElement("div");
+				giscusParking.style.cssText =
+					"position:absolute;width:0;height:0;overflow:hidden;opacity:0;pointer-events:none";
+				document.body.appendChild(giscusParking);
+			}
+			giscusParking.appendChild(giscusHost);
+		}
+
 		function syncGate() {
 			const root = scopeRoot();
 			if (!root) return;
 			const submit = root.querySelector<HTMLElement>(".tk-submit");
 			const gates = [...root.querySelectorAll<HTMLElement>(".hc-gate")];
 
-			// 已登录 / 编辑框还没渲染出来 → 清掉遮罩
+			// 已登录 / 输入框还没渲染出来 → 把登录层收走
 			if (identity || !submit) {
+				detachGiscus();
 				gates.forEach((g) => g.remove());
 				return;
 			}
 
-			// 遮罩必须插在 .tk-submit 内部：它的父节点是 .tk-comments，
-			// 插到父节点会连下面的评论列表一起盖住。
 			const host = submit;
 			if (!host.classList.contains("hc-gate-host")) host.classList.add("hc-gate-host");
 
-			// 只在「同一宿主下已有遮罩」时跳过，避免观察器回调里反复重建
-			if (gates.some((g) => g.parentElement === host)) {
+			// 已经挂在同一个 .tk-submit 里就跳过，避免观察器回调里反复重建
+			const existing = gates.find((g) => g.parentElement === host);
+			if (existing) {
 				gates.forEach((g) => {
-					if (g.parentElement !== host) g.remove();
+					if (g !== existing) g.remove();
 				});
 				return;
 			}
+			detachGiscus();
 			gates.forEach((g) => g.remove());
 
 			const gate = document.createElement("div");
@@ -540,10 +543,17 @@ const newDiscussionUrl =
 				<div class="hc-gate__inner">
 					<p class="hc-gate__title">登录后即可评论</p>
 					<p class="hc-gate__desc">用 GitHub 账号登录，昵称、头像、主页会自动带入，无需填写。</p>
-					<button type="button" class="hc-btn hc-btn--primary hc-gate__btn">使用 GitHub 登录</button>
+					<div class="hc-gate__frame"></div>
+					<p class="hc-gate__hint" hidden></p>
 				</div>`;
-			gate.querySelector(".hc-gate__btn")?.addEventListener("click", () => openGhModal());
 			host.appendChild(gate);
+
+			giscusHint = gate.querySelector<HTMLElement>(".hc-gate__hint");
+			const frame = gate.querySelector<HTMLElement>(".hc-gate__frame");
+			if (frame) {
+				frame.appendChild(ensureGiscusHost());
+				loadGiscus();
+			}
 		}
 
 		// ---------- Twikoo 表单同步 ----------
@@ -770,44 +780,55 @@ const newDiscussionUrl =
 		let giscusLoaded = false;
 		// 收到过 giscus 的 discussion 元数据 = 登录入口已经渲染出来了
 		let giscusReady = false;
+		/**
+		 * 直接按 giscus 的 widget 地址建 iframe，不注入 client.js。
+		 * 原因：client.js 依赖 document.currentScript 和节点位置，我们的登录层会被
+		 * 反复重建/搬动，实测 iframe 建出来却从不导航（子框架 URL 为空、一片白）。
+		 * 自己建 iframe 就一个节点，src 固定，不受影响；高度靠它 postMessage 的 resizeHeight。
+		 */
 		function loadGiscus() {
-			if (giscusLoaded || !ghHost) return;
+			if (giscusLoaded) return;
+			const host = ensureGiscusHost();
+			if (!host) return;
 			giscusLoaded = true;
-			const s = document.createElement("script");
-			s.src = "https://giscus.app/client.js";
-			const attrs: Record<string, string> = {
-				"data-repo": wrap.dataset.repo || "",
-				"data-repo-id": wrap.dataset.repoId || "",
-				"data-category": wrap.dataset.category || "",
-				"data-category-id": wrap.dataset.categoryId || "",
-				// 固定指向专门用来登录的帖子，保证任何页面都能拿到登录者身份
-				"data-mapping": "specific",
-				"data-term": wrap.dataset.term || "giscus-login",
-				// ★ 必须是 0。giscus 源码（services/github/getDiscussion.ts）：
-				//   const resolvedTerm = strict ? await digestMessage(term) : term;
-				//   const searchIn = strict ? 'in:body' : 'in:title';
-				// strict=1 会把标题哈希掉去搜正文，那样永远搜不到「标题叫 giscus-login」的帖子，
-				// 表现就是 giscus 一直报 "Discussion not found"。strict=0 才是按标题原文搜。
-				"data-strict": "0",
-				"data-reactions-enabled": "0",
-				"data-emit-metadata": "1",
-				"data-input-position": "top",
-				"data-theme": document.documentElement.classList.contains("dark") ? "dark" : "light",
-				"data-lang": wrap.dataset.gLang || "zh-CN",
-				"data-loading": "lazy",
-			};
-			for (const [k, v] of Object.entries(attrs)) s.setAttribute(k, v);
-			s.crossOrigin = "anonymous";
-			s.async = true;
-			ghHost.appendChild(s);
+
+			const pageUrl = location.origin + location.pathname;
+			const params = new URLSearchParams({
+				origin: pageUrl,
+				session: "",
+				theme: document.documentElement.classList.contains("dark") ? "dark" : "light",
+				reactionsEnabled: "0",
+				emitMetadata: "1",
+				inputPosition: "top",
+				repo: wrap.dataset.repo || "",
+				repoId: wrap.dataset.repoId || "",
+				category: wrap.dataset.category || "",
+				categoryId: wrap.dataset.categoryId || "",
+				// 必须 0：giscus 源码里 strict 会把 term 哈希后去搜正文（in:body），
+				// 按标题命名的帖子就永远找不到，表现为 "Discussion not found"
+				strict: "0",
+				description: document.title,
+				backLink: location.href,
+				term: wrap.dataset.term || "giscus-login",
+			});
+			const frame = document.createElement("iframe");
+			frame.className = "giscus-frame";
+			frame.setAttribute("scrolling", "no");
+			frame.setAttribute("title", "GitHub 登录");
+			frame.style.cssText =
+				"width:100%;border:0;display:block;height:250px;color-scheme:normal;background:transparent;";
+			frame.src = `https://giscus.app/${wrap.dataset.gLang || "zh-CN"}/widget?${params.toString()}`;
+			host.appendChild(frame);
 
 			// 长时间没拿到身份才提示。收到过 discussion 元数据说明登录入口已经渲染出来了，
 			// 只是访客还没点「Sign in with GitHub」，这时不该打扰他。
 			window.setTimeout(() => {
-				if (identity || !ghHint || giscusReady) return;
-				ghHint.hidden = false;
-				ghHint.textContent = "还没看到登录入口？可能是网络慢或 giscus 被挡，刷新页面再试一次。";
-			}, 12000);
+				if (identity || giscusReady) return;
+				const hint = giscusHint;
+				if (!hint) return;
+				hint.hidden = false;
+				hint.textContent = "还没看到登录入口？可能是网络慢或 giscus 被挡，刷新页面再试一次。";
+			}, 15000);
 		}
 
 		/**
@@ -815,11 +836,12 @@ const newDiscussionUrl =
 		 * 这里直接把「点这里创建」摆出来，而不是留一个空白 iframe 让人猜。
 		 */
 		function showNeedDiscussion() {
-			if (!ghHint) return;
+			const hint = giscusHint;
+			if (!hint) return;
 			const url = wrap.dataset.newDiscussion || "";
 			if (!url) return;
-			ghHint.hidden = false;
-			ghHint.replaceChildren();
+			hint.hidden = false;
+			hint.replaceChildren();
 			const tip = document.createElement("span");
 			tip.textContent = `登录入口没出来：仓库里还缺一个标题为「${wrap.dataset.term}」的帖子。`;
 			const a = document.createElement("a");
@@ -828,39 +850,46 @@ const newDiscussionUrl =
 			a.rel = "noopener noreferrer";
 			a.textContent = "点这里创建（2 秒）→";
 			a.style.cssText = "margin-left:6px;text-decoration:underline;font-weight:600;";
-			ghHint.append(tip, a);
+			hint.append(tip, a);
 		}
 
-		function openGhModal() {
-			if (!ghModal) return;
-			ghModal.hidden = false;
-			loadGiscus();
-		}
-		function closeGhModal() {
-			if (ghModal) ghModal.hidden = true;
+		// 登录入口就在评论框位置上，这里只负责把它滚进视野
+		function openLogin() {
+			syncGate();
+			wrap.querySelector<HTMLElement>(".hc-gate")?.scrollIntoView({ behavior: "smooth", block: "center" });
 		}
 
-		// 登录入口：编辑框上的遮罩按钮（见 syncGate）+ 已登录后的「切换账号」
-		document.getElementById("hc-switch-btn")?.addEventListener("click", openGhModal);
-		document.getElementById("hc-gh-close")?.addEventListener("click", closeGhModal);
-		ghModal?.addEventListener("click", (e) => {
-			if (e.target === ghModal) closeGhModal();
+		document.getElementById("hc-switch-btn")?.addEventListener("click", () => {
+			// 切号：先把本地身份清掉，登录层会重新出现在输入框位置
+			setIdentity(null);
+			openLogin();
 		});
 		document.getElementById("hc-logout-btn")?.addEventListener("click", () => {
 			setIdentity(null);
-			if (ghHost) ghHost.replaceChildren();
-			giscusLoaded = false;
+			toast("已退出本地身份。要彻底换号，请在下面的登录框里点 Sign out。");
 		});
 
 		window.addEventListener("message", (event) => {
 			if (event.origin !== "https://giscus.app") return;
 			const data = (event.data && event.data.giscus) as
-				| { viewer?: { login?: string; avatarUrl?: string; url?: string }; signOut?: boolean; error?: string }
+				| {
+						viewer?: { login?: string; avatarUrl?: string; url?: string };
+						signOut?: boolean;
+						error?: string;
+						resizeHeight?: number;
+						discussion?: unknown;
+				  }
 				| undefined;
 			if (!data) return;
 			if (data.signOut) {
 				setIdentity(null);
 				return;
+			}
+			// giscus 会用 resizeHeight 告诉父页面该多高（自己建 iframe 就得自己设）
+			const rh = (data as { resizeHeight?: number }).resizeHeight;
+			if (typeof rh === "number" && rh > 0) {
+				const frame = giscusHost?.querySelector("iframe");
+				if (frame) frame.style.height = `${rh}px`;
 			}
 			if (data.discussion) giscusReady = true;
 			if (data.viewer && data.viewer.login && data.viewer.login !== GISCUS_BOT) {
@@ -869,7 +898,6 @@ const newDiscussionUrl =
 					avatarUrl: data.viewer.avatarUrl || "",
 					url: data.viewer.url || `https://github.com/${data.viewer.login}`,
 				});
-				closeGhModal();
 				return;
 			}
 			// giscus 找不到帖子时只会丢一句 "Discussion not found"，立刻把创建入口摆出来

@@ -214,38 +214,24 @@ async function main() {
 	await sleep(800);
 	await shotTo("/home/austin/.cache/tmp/hybrid-comment.png");
 
-	// 登录弹层应该注入 giscus，并固定指向专门用来登录的那个帖子
-	const giscus = await evaluate(`(() => {
-		document.getElementById('hc-switch-btn').click();
-		const s = document.querySelector('#hc-giscus-host script');
-		return s ? {
-			src: s.src,
-			repo: s.getAttribute('data-repo'),
-			mapping: s.getAttribute('data-mapping'),
-			term: s.getAttribute('data-term'),
-			emitMetadata: s.getAttribute('data-emit-metadata'),
-			modalOpen: !document.getElementById('hc-gh-modal').hidden,
-		} : { error: '没有注入 giscus 脚本' };
-	})()`);
-	console.log("[6] GitHub 登录弹层：", giscus);
-
-	// 退出登录后，遮罩应该重新盖回编辑框上
+	// 退出登录后，登录层应该重新长回评论输入框的位置
 	const afterLogout = await evaluate(`(async () => {
-		document.getElementById('hc-gh-close').click();
 		document.getElementById('hc-logout-btn').click();
-		await new Promise(r => setTimeout(r, 800));
+		await new Promise(r => setTimeout(r, 2500));
 		const root = document.getElementById('hybrid-comment');
 		const s = root.querySelector('.tk-submit');
 		const g = root.querySelector('.hc-gate');
+		const f = root.querySelector('#hc-giscus-host iframe');
 		return {
 			locked: root.classList.contains('hc-locked'),
 			gate: !!g,
 			gateInsideSubmit: !!(g && s && s.contains(g)),
-			submitPointerEvents: s ? getComputedStyle(s).pointerEvents : null,
+			giscusIframe: !!f,
+			iframeTerm: f ? /term=([^&]+)/.exec(f.src)?.[1] : null,
 			userBarHidden: document.getElementById('hc-user').hidden,
 		};
 	})()`);
-	console.log("[7] 退出登录后：", afterLogout);
+	console.log("[6] 退出登录后：", afterLogout);
 
 	ws.close();
 }
