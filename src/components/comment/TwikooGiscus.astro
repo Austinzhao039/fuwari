@@ -707,6 +707,38 @@ const newDiscussionUrl =
 		// Twikoo 的图片按钮走的是 <input type="file">，在捕获阶段拦一道，超限直接拦下。
 		const MAX_IMAGE = 5 * 1024 * 1024; // 5MB
 		const MAX_VIDEO = 20 * 1024 * 1024; // 20MB（Twikoo 本身不传视频，只用来提示）
+		// 从后端读 IMAGE_CDN：没配图床时图片按钮点了也是一句报错，不如直接拦住并说清楚
+		let imageCdn = "";
+		(async () => {
+			const id = wrap.dataset.envId || "";
+			if (!/^https?:\/\//i.test(id)) return;
+			try {
+				const r = await fetch(id.replace(/\/?$/, "/"), {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ event: "GET_CONFIG" }),
+				});
+				const j = (await r.json()) as { config?: { IMAGE_CDN?: string } };
+				imageCdn = j?.config?.IMAGE_CDN || "";
+			} catch {
+				/* 读不到就当没配 */
+			}
+		})();
+
+		// 点图片按钮时 Twikoo 会去点 <input type="file">，在这一步截住
+		wrap.addEventListener(
+			"click",
+			(e) => {
+				const t = e.target;
+				if (!(t instanceof HTMLInputElement) || t.type !== "file") return;
+				if (imageCdn) return;
+				e.preventDefault();
+				e.stopPropagation();
+				toast("还没配置图床，暂时不能直接上传图片。可以先把图片传到图床，再在评论里贴图片链接。");
+			},
+			true,
+		);
+
 		wrap.addEventListener(
 			"change",
 			(e) => {
