@@ -110,9 +110,13 @@ async function main() {
 			}));
 			return {
 				locked: wrap.classList.contains('hc-locked'),
-				anonVisible: !document.getElementById('hc-anon').hidden,
+				gate: !!root.querySelector('.hc-gate'),
+				gateOverSubmit: (() => {
+					const g = root.querySelector('.hc-gate'), s = root.querySelector('.tk-submit');
+					return !!(g && s && s.contains(g));
+				})(),
+				anonVisible: false,
 				userVisible: !document.getElementById('hc-user').hidden,
-				lockTipVisible: !document.getElementById('hc-lock').hidden,
 				submitHidden: submit ? getComputedStyle(submit).display === 'none' : null,
 				comments: root.querySelectorAll('.tk-comment').length,
 				inputs,
@@ -142,6 +146,16 @@ async function main() {
 	}
 
 	console.log("\n[1] 未登录状态：", await probe());
+
+	const { writeFileSync } = await import("node:fs");
+	async function shotTo(path) {
+		await evaluate(`document.getElementById('hybrid-comment').scrollIntoView({ block: 'start' }); 'ok'`);
+		await sleep(800);
+		const r = await send("Page.captureScreenshot", { format: "png" });
+		writeFileSync(path, Buffer.from(r.data, "base64"));
+		console.log("    截图：", path);
+	}
+	await shotTo("/home/austin/.cache/tmp/hybrid-locked.png");
 
 	// 注入假身份，模拟 giscus 登录成功
 	await evaluate(`localStorage.setItem('gh_identity_v1', JSON.stringify({
@@ -198,14 +212,11 @@ async function main() {
 
 	await evaluate(`document.getElementById('hybrid-comment').scrollIntoView({ block: 'start' }); 'ok'`);
 	await sleep(800);
-	const shot = await send("Page.captureScreenshot", { format: "png" });
-	const { writeFileSync } = await import("node:fs");
-	writeFileSync("/home/austin/.cache/tmp/hybrid-comment.png", Buffer.from(shot.data, "base64"));
-	console.log("[5] 截图：/home/austin/.cache/tmp/hybrid-comment.png");
+	await shotTo("/home/austin/.cache/tmp/hybrid-comment.png");
 
 	// 登录弹层应该注入 giscus，并固定指向专门用来登录的那个帖子
 	const giscus = await evaluate(`(() => {
-		document.getElementById('hc-login-btn').click();
+		document.getElementById('hc-switch-btn').click();
 		const s = document.querySelector('#hc-giscus-host script');
 		return s ? {
 			src: s.src,
@@ -217,6 +228,24 @@ async function main() {
 		} : { error: '没有注入 giscus 脚本' };
 	})()`);
 	console.log("[6] GitHub 登录弹层：", giscus);
+
+	// 退出登录后，遮罩应该重新盖回编辑框上
+	const afterLogout = await evaluate(`(async () => {
+		document.getElementById('hc-gh-close').click();
+		document.getElementById('hc-logout-btn').click();
+		await new Promise(r => setTimeout(r, 800));
+		const root = document.getElementById('hybrid-comment');
+		const s = root.querySelector('.tk-submit');
+		const g = root.querySelector('.hc-gate');
+		return {
+			locked: root.classList.contains('hc-locked'),
+			gate: !!g,
+			gateInsideSubmit: !!(g && s && s.contains(g)),
+			submitPointerEvents: s ? getComputedStyle(s).pointerEvents : null,
+			userBarHidden: document.getElementById('hc-user').hidden,
+		};
+	})()`);
+	console.log("[7] 退出登录后：", afterLogout);
 
 	ws.close();
 }

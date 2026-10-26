@@ -81,19 +81,17 @@ const newDiscussionUrl =
 	data-new-discussion={newDiscussionUrl}
 	data-gh-ok={repo && repoId && categoryId ? "1" : ""}
 >
-	<!-- GitHub 登录条 -->
-	<div class="hc-bar">
-		<div class="hc-bar__anon" id="hc-anon">
-			<span class="hc-bar__lead">发表评论需要先登录 GitHub 账号</span>
-			<button type="button" class="hc-btn hc-btn--primary" id="hc-login-btn">使用 GitHub 登录</button>
-		</div>
-		<div class="hc-bar__user" id="hc-user" hidden>
-			<img class="hc-bar__avatar" id="hc-avatar" alt="" width="28" height="28" />
-			<span class="hc-bar__name" id="hc-name"></span>
-			<span class="hc-bar__tag">已登录</span>
-			<button type="button" class="hc-btn hc-btn--ghost" id="hc-switch-btn">切换账号</button>
-			<button type="button" class="hc-btn hc-btn--ghost" id="hc-logout-btn">退出</button>
-		</div>
+	<!--
+		已登录时显示当前 GitHub 身份。
+		未登录时这条不出现 —— 登录入口是「盖在评论框上的那一层」（见 .hc-gate），
+		登录成功后那层直接消失，光标就能落在下面的输入框里。
+	-->
+	<div class="hc-bar" id="hc-user" hidden>
+		<img class="hc-bar__avatar" id="hc-avatar" alt="" width="28" height="28" />
+		<span class="hc-bar__name" id="hc-name"></span>
+		<span class="hc-bar__tag">已登录</span>
+		<button type="button" class="hc-btn hc-btn--ghost" id="hc-switch-btn">切换账号</button>
+		<button type="button" class="hc-btn hc-btn--ghost" id="hc-logout-btn">退出</button>
 	</div>
 
 	{
@@ -101,14 +99,6 @@ const newDiscussionUrl =
 			<p class="hc-notice">{moderation.notice ?? "评论提交后需经审核，通过后才会显示。"}</p>
 		)
 	}
-
-	<div id="hc-lock" class="hc-lock" hidden>
-		<p class="hc-lock__title">登录后即可评论</p>
-		<p class="hc-lock__desc">
-			评论会以你的 GitHub 昵称公开发布，并记录 IP 归属地与浏览器信息（用于展示来源、拦截垃圾评论）。
-		</p>
-		<button type="button" class="hc-btn hc-btn--primary" id="hc-lock-btn">使用 GitHub 登录</button>
-	</div>
 
 	<div id="tcomment">
 		<div class="hc-loading">评论加载中…</div>
@@ -153,20 +143,15 @@ const newDiscussionUrl =
 		gap: 0.5rem;
 		margin-bottom: 0.75rem;
 	}
-	#hybrid-comment .hc-bar__anon,
-	#hybrid-comment .hc-bar__user {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		flex-wrap: wrap;
+	/* 坑：上面这条 display:flex 的优先级压过 UA 的 [hidden]{display:none}，
+	   不加这条的话「退出登录」后身份条还会挂在那儿。 */
+	#hybrid-comment .hc-bar[hidden] {
+		display: none !important;
 	}
-	#hybrid-comment .hc-bar__lead,
 	#hybrid-comment .hc-bar__name {
 		font-size: 0.9rem;
-		color: var(--primary, #d946a6);
-	}
-	#hybrid-comment .hc-bar__name {
 		font-weight: 600;
+		color: var(--primary, #d946a6);
 	}
 	#hybrid-comment .hc-bar__avatar {
 		width: 28px;
@@ -196,30 +181,62 @@ const newDiscussionUrl =
 		font-size: 14px;
 		color: #999;
 	}
-	#hybrid-comment .hc-lock {
-		border: 1px dashed rgba(217, 70, 166, 0.4);
+	/* 未登录时：编辑框留在原位、点不动，上面盖一层登录遮罩。
+	   注意 ①：twikoo.init 会把 #tcomment 整个替换掉，所以不能依赖 #tcomment 做祖先选择器。
+	   注意 ②：不能用 filter/opacity 虚化 .tk-submit —— 那会连里面的遮罩一起糊掉，
+	   虚化交给遮罩自己的 backdrop-filter 做。 */
+	#hybrid-comment.hc-locked .tk-submit {
+		pointer-events: none;
+		user-select: none;
+	}
+	#hybrid-comment .hc-gate-host {
+		position: relative;
+	}
+	#hybrid-comment .hc-gate {
+		position: absolute;
+		inset: 0;
+		z-index: 5;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0.75rem;
 		border-radius: 0.75rem;
-		padding: 1rem;
+		background: rgba(255, 255, 255, 0.86);
+		backdrop-filter: blur(4px);
+		-webkit-backdrop-filter: blur(4px);
+		/* 父级是 pointer-events:none，这里要自己打开，否则按钮点不了 */
+		pointer-events: auto;
+	}
+	:global(html.dark) #hybrid-comment .hc-gate {
+		background: rgba(24, 24, 27, 0.84);
+	}
+	#hybrid-comment .hc-gate__inner {
 		text-align: center;
-		margin-bottom: 1rem;
+		max-width: 24rem;
 	}
-	#hybrid-comment .hc-lock__title {
-		font-weight: 600;
+	#hybrid-comment .hc-gate__title {
 		margin: 0 0 0.35rem;
+		font-weight: 600;
 	}
-	#hybrid-comment .hc-lock__desc {
+	#hybrid-comment .hc-gate__desc {
+		margin: 0 0 0.75rem;
 		font-size: 0.8rem;
 		line-height: 1.7;
-		margin: 0 0 0.75rem;
 		color: rgba(0, 0, 0, 0.5);
 	}
-	:global(html.dark) #hybrid-comment .hc-lock__desc {
-		color: rgba(255, 255, 255, 0.5);
+	:global(html.dark) #hybrid-comment .hc-gate__desc {
+		color: rgba(255, 255, 255, 0.55);
 	}
-	/* 未登录时把 Twikoo 的输入框整块藏掉，只留评论列表。
-	   注意：twikoo.init 会把 #tcomment 整个替换掉，所以不能依赖 #tcomment 做祖先选择器 */
-	#hybrid-comment.hc-locked .tk-submit {
-		display: none !important;
+	/* 昵称/邮箱/网址：身份由 GitHub 提供，用户不需要填、也改不了 —— 去掉输入框的样子 */
+	#hybrid-comment .tk-meta-input input[readonly] {
+		border-color: transparent !important;
+		background: transparent !important;
+		color: rgba(0, 0, 0, 0.45) !important;
+		cursor: not-allowed;
+		box-shadow: none !important;
+	}
+	:global(html.dark) #hybrid-comment .tk-meta-input input[readonly] {
+		color: rgba(255, 255, 255, 0.45) !important;
 	}
 	/* 管理员徽章（后台管理员名单匹配 GitHub 昵称） */
 	#hybrid-comment .hc-badge {
@@ -359,11 +376,9 @@ const newDiscussionUrl =
 	type Identity = { login: string; avatarUrl: string; url: string } | null;
 
 	function boot(wrap: HTMLElement) {
-		const anon = wrap.querySelector<HTMLElement>("#hc-anon");
 		const userBox = wrap.querySelector<HTMLElement>("#hc-user");
 		const avatarEl = wrap.querySelector<HTMLImageElement>("#hc-avatar");
 		const nameEl = wrap.querySelector<HTMLElement>("#hc-name");
-		const lockBox = wrap.querySelector<HTMLElement>("#hc-lock");
 		const ghModal = document.getElementById("hc-gh-modal");
 		const ghHost = document.getElementById("hc-giscus-host");
 		const ghHint = document.getElementById("hc-gh-hint");
@@ -409,11 +424,9 @@ const newDiscussionUrl =
 		}
 
 		function renderBar() {
-			if (!anon || !userBox || !lockBox || !nameEl) return;
+			if (!userBox || !nameEl) return;
 			if (identity) {
-				anon.hidden = true;
 				userBox.hidden = false;
-				lockBox.hidden = true;
 				nameEl.textContent = identity.login;
 				if (avatarEl) {
 					avatarEl.src = identity.avatarUrl || "";
@@ -421,11 +434,10 @@ const newDiscussionUrl =
 				}
 				wrap.classList.remove("hc-locked");
 			} else {
-				anon.hidden = false;
 				userBox.hidden = true;
-				lockBox.hidden = false;
 				wrap.classList.add("hc-locked");
 			}
+			syncGate();
 		}
 
 		function setIdentity(next: Identity) {
@@ -440,6 +452,49 @@ const newDiscussionUrl =
 		// Twikoo 官方前端会在 init 时把 #tcomment 整个替换掉（新节点不再带这个 id），
 		// 所以一切都从不会被替换的 wrap 上找，否则观察器会挂在一个已移除的节点上。
 		const scopeRoot = () => wrap;
+
+		/**
+		 * 登录遮罩：直接盖在评论编辑框上面（而不是在列表上方另起一块）。
+		 * 未登录 → 编辑框留在原位变虚 + 这层遮罩显示登录入口；
+		 * 登录成功 → 遮罩移除，人就能直接在下面的输入框里写。
+		 */
+		function syncGate() {
+			const root = scopeRoot();
+			if (!root) return;
+			const submit = root.querySelector<HTMLElement>(".tk-submit");
+			const gates = [...root.querySelectorAll<HTMLElement>(".hc-gate")];
+
+			// 已登录 / 编辑框还没渲染出来 → 清掉遮罩
+			if (identity || !submit) {
+				gates.forEach((g) => g.remove());
+				return;
+			}
+
+			// 遮罩必须插在 .tk-submit 内部：它的父节点是 .tk-comments，
+			// 插到父节点会连下面的评论列表一起盖住。
+			const host = submit;
+			if (!host.classList.contains("hc-gate-host")) host.classList.add("hc-gate-host");
+
+			// 只在「同一宿主下已有遮罩」时跳过，避免观察器回调里反复重建
+			if (gates.some((g) => g.parentElement === host)) {
+				gates.forEach((g) => {
+					if (g.parentElement !== host) g.remove();
+				});
+				return;
+			}
+			gates.forEach((g) => g.remove());
+
+			const gate = document.createElement("div");
+			gate.className = "hc-gate";
+			gate.innerHTML = `
+				<div class="hc-gate__inner">
+					<p class="hc-gate__title">登录后即可评论</p>
+					<p class="hc-gate__desc">用 GitHub 账号登录，昵称、头像、主页会自动带入，无需填写。</p>
+					<button type="button" class="hc-btn hc-btn--primary hc-gate__btn">使用 GitHub 登录</button>
+				</div>`;
+			gate.querySelector(".hc-gate__btn")?.addEventListener("click", () => openGhModal());
+			host.appendChild(gate);
+		}
 
 		// ---------- Twikoo 表单同步 ----------
 		function syncEditor() {
@@ -461,6 +516,7 @@ const newDiscussionUrl =
 					inp.readOnly = true;
 				});
 			}
+			syncGate();
 			syncAvatars();
 			injectBadges();
 		}
@@ -645,8 +701,7 @@ const newDiscussionUrl =
 			if (ghModal) ghModal.hidden = true;
 		}
 
-		document.getElementById("hc-login-btn")?.addEventListener("click", openGhModal);
-		document.getElementById("hc-lock-btn")?.addEventListener("click", openGhModal);
+		// 登录入口：编辑框上的遮罩按钮（见 syncGate）+ 已登录后的「切换账号」
 		document.getElementById("hc-switch-btn")?.addEventListener("click", openGhModal);
 		document.getElementById("hc-gh-close")?.addEventListener("click", closeGhModal);
 		ghModal?.addEventListener("click", (e) => {
