@@ -247,7 +247,7 @@ const newDiscussionUrl =
 	#hybrid-comment .tk-icon + .tk-icon {
 		display: none !important;
 	}
-	#hybrid-comment .hc-toast {
+	.hc-toast {
 		position: fixed;
 		left: 50%;
 		bottom: 2rem;
@@ -262,7 +262,7 @@ const newDiscussionUrl =
 		line-height: 1.6;
 		box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
 	}
-	#hybrid-comment .hc-toast[hidden] {
+	.hc-toast[hidden] {
 		display: none !important;
 	}
 	/* 管理员徽章（后台管理员名单匹配 GitHub 昵称） */
@@ -392,6 +392,9 @@ const newDiscussionUrl =
 	const ID_KEY = "gh_identity_v1";
 	const CONSENT_KEY = "comment_consent_v1";
 	const META_KEY = "twikoo";
+	// giscus 自己是用「giscus[bot]」这个 App 身份去查帖子的，游客没登录时 viewer 就是它。
+	// 千万别拿它当用户身份，否则谁都能以 giscus[bot] 的名义发评论。
+	const GISCUS_BOT = "giscus[bot]";
 
 	// 主 CDN 挂了就换下一个，避免整块评论区空白
 	const CDN_TEMPLATES = [
@@ -402,8 +405,15 @@ const newDiscussionUrl =
 
 	type Identity = { login: string; avatarUrl: string; url: string } | null;
 
-	function boot(wrap: HTMLElement) {
-		const userBox = wrap.querySelector<HTMLElement>("#hc-user");
+		function boot(wrap: HTMLElement) {
+			// ★ 弹层/提示条必须挂到 body 上：
+			//   页面里有个 div.onload-animation 带 transform，它会成为 position:fixed 的
+			//   包含块，弹层就会被限制在那个 div 里（实测高度 3826px、盖住整页却看不到框）。
+			for (const el of [document.getElementById("hc-gh-modal"), document.getElementById("hc-toast")]) {
+				if (el && el.parentElement !== document.body) document.body.appendChild(el);
+			}
+
+			const userBox = wrap.querySelector<HTMLElement>("#hc-user");
 		const avatarEl = wrap.querySelector<HTMLImageElement>("#hc-avatar");
 		const nameEl = wrap.querySelector<HTMLElement>("#hc-name");
 		const ghModal = document.getElementById("hc-gh-modal");
@@ -726,6 +736,8 @@ const newDiscussionUrl =
 
 		// ---------- giscus 登录 ----------
 		let giscusLoaded = false;
+		// 收到过 giscus 的 discussion 元数据 = 登录入口已经渲染出来了
+		let giscusReady = false;
 		function loadGiscus() {
 			if (giscusLoaded || !ghHost) return;
 			giscusLoaded = true;
@@ -739,7 +751,12 @@ const newDiscussionUrl =
 				// 固定指向专门用来登录的帖子，保证任何页面都能拿到登录者身份
 				"data-mapping": "specific",
 				"data-term": wrap.dataset.term || "giscus-login",
-				"data-strict": "1",
+				// ★ 必须是 0。giscus 源码（services/github/getDiscussion.ts）：
+				//   const resolvedTerm = strict ? await digestMessage(term) : term;
+				//   const searchIn = strict ? 'in:body' : 'in:title';
+				// strict=1 会把标题哈希掉去搜正文，那样永远搜不到「标题叫 giscus-login」的帖子，
+				// 表现就是 giscus 一直报 "Discussion not found"。strict=0 才是按标题原文搜。
+				"data-strict": "0",
 				"data-reactions-enabled": "0",
 				"data-emit-metadata": "1",
 				"data-input-position": "top",
@@ -752,11 +769,13 @@ const newDiscussionUrl =
 			s.async = true;
 			ghHost.appendChild(s);
 
-			// 迟迟收不到身份多半是那个登录帖还没建，给个能直接点的链接
+			// 长时间没拿到身份才提示。收到过 discussion 元数据说明登录入口已经渲染出来了，
+			// 只是访客还没点「Sign in with GitHub」，这时不该打扰他。
 			window.setTimeout(() => {
-				if (identity) return;
-				showNeedDiscussion();
-			}, 9000);
+				if (identity || !ghHint || giscusReady) return;
+				ghHint.hidden = false;
+				ghHint.textContent = "还没看到登录入口？可能是网络慢或 giscus 被挡，刷新页面再试一次。";
+			}, 12000);
 		}
 
 		/**
@@ -811,7 +830,8 @@ const newDiscussionUrl =
 				setIdentity(null);
 				return;
 			}
-			if (data.viewer && data.viewer.login) {
+			if (data.discussion) giscusReady = true;
+			if (data.viewer && data.viewer.login && data.viewer.login !== GISCUS_BOT) {
 				setIdentity({
 					login: data.viewer.login,
 					avatarUrl: data.viewer.avatarUrl || "",
