@@ -151,6 +151,13 @@ export const commentConfig: CommentConfig = {
 		// https://github.com/Austinzhao039/fuwari/discussions/new?category=Announcements&title=giscus-login
 		loginTerm: "giscus-login",
 	},
+	// 图片上传：Twikoo 1.6.44 内置的图床全试过（smms 通道已 404、7bu/imgos 收费、
+	// beeimg 被攻击封停、img520 的 links.url 可用），最终改成浏览器直传第三方。
+	media: {
+		uploader: "img520",
+		endpoint: "https://img520.com/api/v1/upload",
+		maxImageMB: 5,
+	},
 	moderation: {
 		// 与后台 AKISMET_KEY=MANUAL_REVIEW 对应：开了审核就置 true，前端会提示访客
 		reviewRequired: true,

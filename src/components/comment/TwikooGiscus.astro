@@ -78,6 +78,9 @@ const newDiscussionUrl =
 	data-consent-title={consent?.title ?? "评论前请阅读"}
 	data-consent-agree={consent?.agree ?? "我已阅读并同意"}
 	data-consent-items={JSON.stringify(consent?.items ?? [])}
+	data-uploader={commentConfig.media?.uploader ?? "none"}
+	data-upload-endpoint={commentConfig.media?.endpoint ?? "https://img520.com/api/v1/upload"}
+	data-max-image-mb={String(commentConfig.media?.maxImageMB ?? 5)}
 	data-new-discussion={newDiscussionUrl}
 	data-gh-ok={repo && repoId && categoryId ? "1" : ""}
 >
@@ -713,10 +716,46 @@ const newDiscussionUrl =
 			true,
 		);
 
-		// ---------- 上传体积把关 ----------
+		// ---------- 上传体积把关 + 第三方图床 ----------
 		// Twikoo 的图片按钮走的是 <input type="file">，在捕获阶段拦一道，超限直接拦下。
-		const MAX_IMAGE = 5 * 1024 * 1024; // 5MB
+		const MAX_IMAGE = (Number(wrap.dataset.maxImageMb) || 5) * 1024 * 1024;
 		const MAX_VIDEO = 20 * 1024 * 1024; // 20MB（Twikoo 本身不传视频，只用来提示）
+
+		// 第三方图床：Twikoo 1.6.44 只认 smms/7bu/lskypro/piclist/easyimage，
+		// 而这些要么收费要么挂了，所以图片改成**浏览器直传第三方**，再插 Markdown 进评论。
+		// img520.com 匿名可传、返回 {status,data:{links:{url}}}、且带 ACAO:*（CORS 放行），
+		// 所以不需要注册、不需要 token，令牌也不会出现在页面里。
+		const uploader = wrap.dataset.uploader || "none";
+		const uploadEndpoint = wrap.dataset.uploadEndpoint || "https://img520.com/api/v1/upload";
+
+		async function uploadToHost(file: File): Promise<string> {
+			const fd = new FormData();
+			fd.append("file", file);
+			const res = await fetch(uploadEndpoint, { method: "POST", body: fd });
+			let json: { data?: { links?: { url?: string }; url?: string }; message?: string } | null = null;
+			try {
+				json = await res.json();
+			} catch {
+				throw new Error(`图床返回的不是 JSON（HTTP ${res.status}）`);
+			}
+			const url = json?.data?.links?.url || json?.data?.url;
+			if (!url) throw new Error(json?.message || `图床没返回地址（HTTP ${res.status}）`);
+			return url;
+		}
+
+		// 把 Markdown 插到光标处（直接改 value 再派发 input，Vue 的 v-model 才认）
+		function insertMarkdown(md: string) {
+			const ta =
+				wrap.querySelector<HTMLTextAreaElement>(".tk-input textarea") ||
+				wrap.querySelector<HTMLTextAreaElement>("textarea");
+			if (!ta) return;
+			const start = ta.selectionStart ?? ta.value.length;
+			const end = ta.selectionEnd ?? start;
+			ta.value = ta.value.slice(0, start) + md + ta.value.slice(end);
+			ta.dispatchEvent(new Event("input", { bubbles: true }));
+			ta.focus();
+			ta.setSelectionRange(start + md.length, start + md.length);
+		}
 		// 从后端读 IMAGE_CDN：没配图床时图片按钮点了也是一句报错，不如直接拦住并说清楚
 		let imageCdn = "";
 		(async () => {
@@ -741,7 +780,8 @@ const newDiscussionUrl =
 			(e) => {
 				const t = e.target;
 				if (!(t instanceof HTMLInputElement) || t.type !== "file") return;
-				if (imageCdn) return;
+				// 有第三方直传 / Twikoo 配了图床 → 放行
+				if (uploader !== "none" || imageCdn) return;
 				e.preventDefault();
 				e.stopPropagation();
 				toast("还没配置图床，暂时不能直接上传图片。可以先把图片传到图床，再在评论里贴图片链接。");
@@ -770,7 +810,24 @@ const newDiscussionUrl =
 					e.stopPropagation();
 					e.preventDefault();
 					input.value = "";
-					toast(`图片不能超过 5MB，这张是 ${(file.size / 1024 / 1024).toFixed(1)}MB，压缩一下再传。`);
+					toast(`图片不能超过 ${Math.round(MAX_IMAGE / 1024 / 1024)}MB，这张是 ${(file.size / 1024 / 1024).toFixed(1)}MB，压缩一下再传。`);
+					return;
+				}
+				// 配了第三方直传：自己上传，别让 Twikoo 去试它那些用不了的图床
+				if (uploader !== "none") {
+					e.stopPropagation();
+					e.preventDefault();
+					input.value = "";
+					toast("图片上传中…");
+					uploadToHost(file)
+						.then((url) => {
+							insertMarkdown(`![图片](${url})`);
+							toast("图片已插入到评论里");
+						})
+						.catch((err) => {
+							console.error("[upload]", err);
+							toast(`图片上传失败：${err instanceof Error ? err.message : String(err)}`);
+						});
 				}
 			},
 			true,

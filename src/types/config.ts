@@ -116,6 +116,18 @@ export type CommentConfig = {
 	artalk?: ArtalkConfig;
 	consent?: CommentConsentConfig;
 	moderation?: CommentModerationConfig;
+	media?: CommentMediaConfig;
+};
+
+// 评论里的图片上传：Twikoo 1.6.44 自带的图床要么收费要么已失效，
+// 所以改成浏览器直传第三方（对方必须允许 CORS）。
+type CommentMediaConfig = {
+	// img520 = 匿名直传 img520.com（免注册、免 token）；none = 关闭，只能贴链接
+	uploader?: "img520" | "none";
+	// 换成别家「返回 data.links.url」的接口时改这里
+	endpoint?: string;
+	// 单张图片上限（MB）
+	maxImageMB?: number;
 };
 
 // Artalk 自建评论（支持 GitHub OAuth 登录、IP 属地、浏览器信息）
