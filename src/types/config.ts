@@ -1,5 +1,21 @@
 import type { AUTO_MODE, DARK_MODE, LIGHT_MODE } from "@constants/constants";
 
+// 侧边栏广告位。两种用法：
+//   mode: "image" —— 填图片 + 跳转链接（自售广告位、友链位、联盟图片广告）
+//   mode: "html"  —— 直接粘联盟给的代码（AdSense / 百度联盟 等）
+// 法规提示：中国大陆《互联网广告管理办法》要求互联网广告显著标明「广告」，
+// 所以 label 默认就是"广告"，别改成看不出是广告的词。
+export type AdSlotConfig = {
+	enable: boolean;
+	label?: string;
+	mode?: "image" | "html";
+	image?: string;
+	link?: string;
+	alt?: string;
+	html?: string;
+	height?: number;
+};
+
 export type SiteConfig = {
 	title: string;
 	subtitle: string;
@@ -29,6 +45,9 @@ export type SiteConfig = {
 			text: string;
 			url?: string;
 		};
+	};
+	adConfig?: {
+		sidebar?: AdSlotConfig;
 	};
 	toc: {
 		enable: boolean;

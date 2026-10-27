@@ -1,5 +1,6 @@
 ---
 import type { MarkdownHeading } from "astro";
+import AdSlot from "./AdSlot.astro";
 import Categories from "./Categories.astro";
 import Profile from "./Profile.astro";
 import Tag from "./Tags.astro";
@@ -19,6 +20,8 @@ const className = Astro.props.class;
     <div id="sidebar-sticky" class="transition-all duration-700 flex flex-col w-full gap-4 top-4 sticky top-4">
         <Categories class="onload-animation" style="animation-delay: 150ms"></Categories>
         <Tag class="onload-animation" style="animation-delay: 200ms"></Tag>
+        {/* 广告位：在「标签」和「运行时间」之间，enable=false 时完全不渲染、不占位 */}
+        <AdSlot></AdSlot>
         <UptimeCounter></UptimeCounter>
     </div>
 </div>

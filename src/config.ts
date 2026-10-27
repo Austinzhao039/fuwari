@@ -26,6 +26,23 @@ export const siteConfig: SiteConfig = {
 			url: "", // (Optional) URL link to the original artwork or artist's page
 		},
 	},
+	// 左侧栏广告位（在「标签」和「运行时间」之间）
+	// 用法：把 public/ads/sidebar-280x250.png 换成你的广告图（或改 mode: "html" 粘联盟代码），
+	// 再把 enable 改成 true 就上线。enable=false 时整个节点不渲染、不占位。
+	adConfig: {
+		sidebar: {
+			enable: false, // ← 换好素材后改成 true
+			label: "广告",
+			// "image" = 图片广告（自己找图 + 填跳转链接）；"html" = 粘贴联盟代码
+			mode: "image",
+			image: "/ads/sidebar-280x250.png", // 放 public/ads/ 下，宽度建议 ≤280
+			link: "https://example.com",
+			alt: "赞助商",
+			height: 250, // 占位高度，防止图片加载完后页面跳动
+			// mode 为 "html" 时用这段（示例：AdSense）
+			html: "",
+		},
+	},
 	toc: {
 		enable: true, // Display the table of contents on the right side of the post
 		depth: 2, // Maximum heading depth to show in the table, from 1 to 3

@@ -1,0 +1,79 @@
+---
+import { siteConfig } from "../../config";
+
+const ad = siteConfig.adConfig?.sidebar;
+const enable = !!ad?.enable;
+const label = ad?.label ?? "广告";
+const mode = ad?.mode ?? "image";
+const height = ad?.height ?? 250;
+const hasImage = mode === "image" && !!ad?.image;
+const hasHtml = mode === "html" && !!ad?.html;
+const show = enable && (hasImage || hasHtml);
+---
+
+{
+	show && (
+		<div id="sidebar-ad" class="card-base relative overflow-hidden onload-animation" style="animation-delay: 250ms">
+			{/* 法规要求：《互联网广告管理办法》规定互联网广告应显著标明「广告」 */}
+			<span class="ad-badge">{label}</span>
+
+			<div class="ad-body" style={`min-height:${height}px`}>
+				{mode === "html" ? (
+					<Fragment set:html={ad?.html ?? ""} />
+				) : (
+					<a
+						href={ad?.link || "#"}
+						target="_blank"
+						rel="sponsored nofollow noopener noreferrer"
+						class="block w-full"
+						aria-label={ad?.alt || label}
+					>
+						<img
+							src={ad?.image || ""}
+							alt={ad?.alt ?? ""}
+							width="280"
+							height={height}
+							loading="lazy"
+							decoding="async"
+							class="block w-full h-auto"
+						/>
+					</a>
+				)}
+			</div>
+		</div>
+	)
+}
+
+<style>
+	/* 类名都带 ad- 前缀，并挂在 #sidebar-ad 下，避免进全站样式后误伤别处 */
+	/* 角标要压在图上，深浅底都得看得清 —— 用半透明黑 + 白字 + 背景模糊 */
+	#sidebar-ad .ad-badge {
+		position: absolute;
+		top: 0.4rem;
+		right: 0.4rem;
+		z-index: 2;
+		font-size: 10px;
+		line-height: 1;
+		padding: 0.22rem 0.4rem;
+		border-radius: 0.25rem;
+		background: rgba(0, 0, 0, 0.5);
+		color: #fff;
+		letter-spacing: 0.02em;
+		backdrop-filter: blur(4px);
+		-webkit-backdrop-filter: blur(4px);
+		box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+		pointer-events: none;
+	}
+	#sidebar-ad .ad-body {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		overflow: hidden;
+	}
+	/* 联盟代码（iframe/img）宽度兜底，别把 280 的侧栏撑破 */
+	#sidebar-ad .ad-body :global(iframe),
+	#sidebar-ad .ad-body :global(img) {
+		max-width: 100%;
+		display: block;
+	}
+</style>
