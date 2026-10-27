@@ -3,22 +3,49 @@ import { siteConfig } from "../../config";
 
 const ad = siteConfig.adConfig?.sidebar;
 const enable = !!ad?.enable;
-const label = ad?.label ?? "广告";
 const mode = ad?.mode ?? "image";
 const height = ad?.height ?? 250;
 const hasImage = mode === "image" && !!ad?.image;
 const hasHtml = mode === "html" && !!ad?.html;
-const show = enable && (hasImage || hasHtml);
+// 赞助模式没有填地址就不渲染，不会出现一个点不动的按钮
+const hasAfdian = mode === "afdian" && !!ad?.url;
+const show = enable && (hasImage || hasHtml || hasAfdian);
+// 赞助不是商业广告，角标默认写「赞助」；图片/html 广告按法规必须写「广告」
+const label = ad?.label ?? (mode === "afdian" ? "赞助" : "广告");
+const desc = ad?.desc ?? "觉得有用的话，请我喝杯咖啡 ☕";
 ---
 
 {
 	show && (
-		<div id="sidebar-ad" class="card-base relative overflow-hidden onload-animation" style="animation-delay: 250ms">
+		<div
+			id="sidebar-ad"
+			class:list={["card-base relative overflow-hidden onload-animation", mode === "afdian" && "ad-pad"]}
+			style="animation-delay: 250ms"
+		>
 			{/* 法规要求：《互联网广告管理办法》规定互联网广告应显著标明「广告」 */}
 			<span class="ad-badge">{label}</span>
 
-			<div class="ad-body" style={`min-height:${height}px`}>
-				{mode === "html" ? (
+			<div class="ad-body" style={mode === "image" ? `min-height:${height}px` : undefined}>
+				{mode === "afdian" ? (
+					<div class="ad-afdian">
+						<p class="ad-afdian__title">支持这个博客</p>
+						<p class="ad-afdian__desc">{desc}</p>
+						<a
+							class="ad-afdian__btn"
+							href={ad?.url}
+							target="_blank"
+							rel="sponsored noopener noreferrer"
+						>
+							去爱发电赞助
+						</a>
+						{ad?.qr && (
+							<div class="ad-afdian__qrwrap">
+								<img class="ad-afdian__qr" src={ad.qr} alt="赞赏码" loading="lazy" decoding="async" />
+								<span class="ad-afdian__qrtip">或扫码赞赏</span>
+							</div>
+						)}
+					</div>
+				) : mode === "html" ? (
 					<Fragment set:html={ad?.html ?? ""} />
 				) : (
 					<a
@@ -69,6 +96,68 @@ const show = enable && (hasImage || hasHtml);
 		align-items: center;
 		justify-content: center;
 		overflow: hidden;
+	}
+	/* 赞助卡：需要内边距，图片广告则要贴边 */
+	#sidebar-ad.ad-pad {
+		padding: 0.95rem 1rem 1.05rem;
+	}
+	#sidebar-ad .ad-afdian {
+		width: 100%;
+		text-align: center;
+	}
+	#sidebar-ad .ad-afdian__title {
+		margin: 0 0 0.3rem;
+		font-size: 0.95rem;
+		font-weight: 700;
+		color: #111827;
+	}
+	:global(html.dark) #sidebar-ad .ad-afdian__title {
+		color: #f3f4f6;
+	}
+	#sidebar-ad .ad-afdian__desc {
+		margin: 0 0 0.7rem;
+		font-size: 0.78rem;
+		line-height: 1.7;
+		color: #6b7280;
+	}
+	:global(html.dark) #sidebar-ad .ad-afdian__desc {
+		color: #9ca3af;
+	}
+	#sidebar-ad .ad-afdian__btn {
+		display: block;
+		width: 100%;
+		padding: 0.5rem 0.75rem;
+		border-radius: 0.6rem;
+		background: var(--primary);
+		color: #fff;
+		font-size: 0.85rem;
+		font-weight: 600;
+		text-align: center;
+		text-decoration: none;
+		transition: opacity 0.15s ease;
+	}
+	#sidebar-ad .ad-afdian__btn:hover {
+		opacity: 0.86;
+		color: #fff;
+	}
+	#sidebar-ad .ad-afdian__qrwrap {
+		margin-top: 0.7rem;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.25rem;
+	}
+	#sidebar-ad .ad-afdian__qr {
+		width: 110px;
+		height: 110px;
+		padding: 4px;
+		border-radius: 0.4rem;
+		background: #fff;
+		object-fit: contain;
+	}
+	#sidebar-ad .ad-afdian__qrtip {
+		font-size: 0.7rem;
+		color: #9ca3af;
 	}
 	/* 联盟代码（iframe/img）宽度兜底，别把 280 的侧栏撑破 */
 	#sidebar-ad .ad-body :global(iframe),

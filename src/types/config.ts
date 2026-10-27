@@ -7,13 +7,21 @@ import type { AUTO_MODE, DARK_MODE, LIGHT_MODE } from "@constants/constants";
 // 所以 label 默认就是"广告"，别改成看不出是广告的词。
 export type AdSlotConfig = {
 	enable: boolean;
+	// 角标文字。图片/联盟广告按法规必须写「广告」；赞助模式写「赞助」更自然
 	label?: string;
-	mode?: "image" | "html";
+	// image = 图片广告；html = 粘联盟代码；afdian = 爱发电赞助卡
+	mode?: "image" | "html" | "afdian";
+	// --- image 模式 ---
 	image?: string;
 	link?: string;
 	alt?: string;
-	html?: string;
 	height?: number;
+	// --- html 模式 ---
+	html?: string;
+	// --- afdian 模式 ---
+	url?: string; // 爱发电主页，形如 https://afdian.com/a/yourname
+	desc?: string;
+	qr?: string; // 可选：赞赏收款码图片（放 public/ads/ 下）
 };
 
 export type SiteConfig = {

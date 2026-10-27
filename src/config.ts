@@ -31,15 +31,21 @@ export const siteConfig: SiteConfig = {
 	// 再把 enable 改成 true 就上线。enable=false 时整个节点不渲染、不占位。
 	adConfig: {
 		sidebar: {
-			enable: false, // ← 换好素材后改成 true
-			label: "广告",
-			// "image" = 图片广告（自己找图 + 填跳转链接）；"html" = 粘贴联盟代码
-			mode: "image",
-			image: "/ads/sidebar-280x250.png", // 放 public/ads/ 下，宽度建议 ≤280
+			enable: true,
+			label: "赞助",
+			// "afdian" = 爱发电赞助卡；"image" = 图片广告；"html" = 粘贴联盟代码
+			mode: "afdian",
+			url: "", // ← 填你的爱发电主页，形如 https://afdian.com/a/你的ID，填了才会显示
+			desc: "觉得有用的话，请我喝杯咖啡 ☕",
+			qr: "", // 可选：赞赏收款码，放 public/ads/ 下后填 /ads/qr.png
+
+			// mode 为 "image" 时用这几项
+			image: "/ads/sidebar-280x250.png",
 			link: "https://example.com",
 			alt: "赞助商",
-			height: 250, // 占位高度，防止图片加载完后页面跳动
-			// mode 为 "html" 时用这段（示例：AdSense）
+			height: 250,
+
+			// mode 为 "html" 时用这段
 			html: "",
 		},
 	},
