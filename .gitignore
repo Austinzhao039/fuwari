@@ -36,3 +36,6 @@ dist[0-9]*.zip
 
 # 评论备份的完整副本（含邮箱/IP），绝不能提交
 backups/private/
+
+# WorkBuddy 的工作区数据，不进公开仓库
+.workbuddy/
