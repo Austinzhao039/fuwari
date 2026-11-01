@@ -35,7 +35,7 @@ export const siteConfig: SiteConfig = {
 			label: "赞助",
 			// "afdian" = 爱发电赞助卡；"image" = 图片广告；"html" = 粘贴联盟代码
 			mode: "afdian",
-			url: "", // ← 填你的爱发电主页，形如 https://afdian.com/a/你的ID，填了才会显示
+			url: "https://ifdian.net/a/Austin666", // 爱发电主页；留空则整块不显示
 			desc: "觉得有用的话，请我喝杯咖啡 ☕",
 			qr: "", // 可选：赞赏收款码，放 public/ads/ 下后填 /ads/qr.png
 

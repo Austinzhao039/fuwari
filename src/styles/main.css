@@ -150,3 +150,8 @@
     }
   }
 }
+/* Expressive Code 的行号：github-dark 默认 #444d56，压在 #0d1117 上对比度只有 2.4，
+   深色模式下几乎看不见 —— 提亮到 42% 白（约 4.2:1） */
+figure.frame .gutter .ln {
+  color: rgba(230, 237, 243, 0.42) !important;
+}
