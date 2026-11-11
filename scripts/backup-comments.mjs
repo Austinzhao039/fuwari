@@ -99,15 +99,20 @@ async function main() {
 	if (privatePath) console.log(`  完整副本（含邮箱/IP，勿提交）：${privatePath}`);
 
 	if (PUSH) {
-		const g = (args) =>
+		// GitHub 的 22 端口在国内常被阻断：连得上、认证也过，但一传数据就卡在
+		// 重传里（tx_queue 不动）。所以 push 必须带超时，失败再退回 443。
+		const SSH_BASE =
+			"/host/usr/bin/ssh -i /home/austin/.ssh/id_ed25519 -o StrictHostKeyChecking=no -o BatchMode=yes" +
+			" -o ConnectTimeout=15 -o ServerAliveInterval=10 -o ServerAliveCountMax=3";
+		const g = (args, sshCommand = SSH_BASE, timeout = 0) =>
 			spawnSync("/host/usr/bin/git", args, {
 				cwd: ROOT,
 				encoding: "utf8",
+				timeout,
 				env: {
 					...process.env,
 					GIT_EXEC_PATH: "/host/usr/lib/git-core",
-					GIT_SSH_COMMAND:
-						"/host/usr/bin/ssh -i /home/austin/.ssh/id_ed25519 -o StrictHostKeyChecking=no -o BatchMode=yes",
+					GIT_SSH_COMMAND: sshCommand,
 				},
 			});
 		g(["add", "backups/comments.json"]);
@@ -126,7 +131,19 @@ async function main() {
 			`备份评论（${publicList.length} 条，${exportedAt.slice(0, 10)}）`,
 		]);
 		if (c.status !== 0) throw new Error(`git commit 失败：${c.stderr || c.stdout}`);
-		const p = g(["push"]);
+		let p = g(["push"], SSH_BASE, 90_000);
+		if (p.status !== 0) {
+			console.log("22 端口推送未完成，改用 443 端口重试…");
+			p = g(
+				["push", "ssh://git@ssh.github.com:443/Austinzhao039/fuwari.git", "HEAD:main"],
+				`${SSH_BASE} -p 443`,
+				180_000,
+			);
+			if (p.status === 0) {
+				// 显式 URL 推送不会更新 remote-tracking ref，手动对齐，免得 git status 显示落后
+				g(["update-ref", "refs/remotes/origin/main", "HEAD"]);
+			}
+		}
 		if (p.status !== 0) throw new Error(`git push 失败：${p.stderr || p.stdout}`);
 		console.log("已提交并推送到 GitHub");
 	}
