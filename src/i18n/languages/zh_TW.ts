@@ -38,4 +38,7 @@ export const zh_TW: Translation = {
 	[Key.author]: "作者",
 	[Key.publishedAt]: "發佈於",
 	[Key.license]: "許可協議",
+
+	[Key.notFound]: "頁面不存在",
+	[Key.notFoundDesc]: "這個位址下沒有內容——可能是連結已經失效，或者位址打錯了一個字。",
 };

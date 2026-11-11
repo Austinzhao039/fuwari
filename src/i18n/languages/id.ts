@@ -38,4 +38,7 @@ export const id: Translation = {
 	[Key.author]: "Penulis",
 	[Key.publishedAt]: "Diterbitkan pada",
 	[Key.license]: "Lisensi",
+
+	[Key.notFound]: "Halaman tidak ditemukan",
+	[Key.notFoundDesc]: "Tidak ada konten di alamat ini. Tautannya mungkin rusak atau alamatnya salah ketik.",
 };

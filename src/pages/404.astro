@@ -1,0 +1,156 @@
+---
+import I18nKey from "../i18n/i18nKey";
+import { i18n } from "../i18n/translation";
+import MainGridLayout from "../layouts/MainGridLayout.astro";
+import { getSortedPostsList } from "../utils/content-utils";
+import { formatDateToYYYYMMDD } from "../utils/date-utils";
+import { getPostUrlBySlug, url } from "../utils/url-utils";
+
+const notFoundTitle = i18n(I18nKey.notFound);
+const notFoundDesc = i18n(I18nKey.notFoundDesc);
+
+// 给迷路的人一个出口：直接列出最近写的几篇
+const recentPosts = (await getSortedPostsList()).slice(0, 3);
+---
+
+<MainGridLayout title={`404 · ${notFoundTitle}`} description={notFoundDesc}>
+	<Fragment slot="head">
+		<meta name="robots" content="noindex, follow" />
+	</Fragment>
+
+	<div class="card-base relative overflow-hidden">
+		<!-- 背景柔光：颜色取自主题色，深色模式自动跟随 -->
+		<div class="nf-glow" aria-hidden="true"></div>
+		<div class="nf-grid" aria-hidden="true"></div>
+
+		<div class="relative z-10 flex flex-col items-center px-6 py-16 text-center sm:px-10 sm:py-24">
+			<p class="nf-code" aria-hidden="true">404</p>
+
+			<h1 class="text-90 mt-4 text-2xl font-bold sm:text-3xl">{notFoundTitle}</h1>
+			<p class="text-75 mt-3 max-w-lg text-sm leading-relaxed sm:text-base">
+				{notFoundDesc}
+			</p>
+
+			<div class="mt-9 flex flex-wrap items-center justify-center gap-3">
+				<a
+					href={url("/")}
+					class="btn-regular nf-btn-primary h-11 rounded-xl px-6 text-sm font-medium transition hover:opacity-90 active:scale-[0.98]"
+				>
+					{i18n(I18nKey.home)}
+				</a>
+				<a
+					href={url("/archive/")}
+					class="btn-regular text-75 h-11 rounded-xl px-6 text-sm font-medium transition active:scale-[0.98]"
+				>
+					{i18n(I18nKey.archive)}
+				</a>
+			</div>
+
+			<p class="text-30 mt-10 font-mono text-xs">
+				<span class="opacity-70">HTTP</span> 404 <span class="opacity-70">/</span> Not Found
+			</p>
+
+			{
+				recentPosts.length > 0 && (
+					<div class="nf-recent">
+						<p class="text-50 mb-3 text-xs font-medium tracking-wide">
+							{i18n(I18nKey.recentPosts)}
+						</p>
+						<ul class="flex flex-col gap-1">
+							{recentPosts.map((post) => (
+								<li>
+									<a
+										href={getPostUrlBySlug(post.slug)}
+										class="nf-recent-item group flex items-baseline gap-3 rounded-lg px-3 py-2 text-sm"
+									>
+										<span class="text-75 group-hover:text-[var(--primary)] truncate transition-colors">
+											{post.data.title}
+										</span>
+										<span class="text-30 ml-auto shrink-0 font-mono text-xs">
+											{formatDateToYYYYMMDD(post.data.published)}
+										</span>
+									</a>
+								</li>
+							))}
+						</ul>
+					</div>
+				)
+			}
+		</div>
+	</div>
+</MainGridLayout>
+
+<style>
+	/* 主按钮：亮色配白字、暗色配深字，避免暗色下白字压不住亮主题色 */
+	.nf-btn-primary {
+		background-color: var(--primary);
+		color: oklch(0.99 0 0);
+	}
+
+	/* 暗色下主题色更亮，改用深色字保证对比度 */
+	html.dark .nf-btn-primary {
+		color: oklch(0.22 0.02 var(--hue));
+	}
+
+	.nf-glow {
+		position: absolute;
+		inset: -40% -20% auto -20%;
+		height: 130%;
+		background: radial-gradient(
+			50% 60% at 50% 30%,
+			var(--primary) 0%,
+			transparent 70%
+		);
+		opacity: 0.1;
+		pointer-events: none;
+	}
+
+	.nf-grid {
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+		opacity: 0.55;
+		background-image: linear-gradient(
+				to right,
+				var(--line-divider) 1px,
+				transparent 1px
+			), linear-gradient(to bottom, var(--line-divider) 1px, transparent 1px);
+		background-size: 32px 32px;
+		mask-image: radial-gradient(65% 65% at 50% 40%, black 0%, transparent 100%);
+		-webkit-mask-image: radial-gradient(
+			65% 65% at 50% 40%,
+			black 0%,
+			transparent 100%
+		);
+	}
+
+	.nf-recent {
+		width: 100%;
+		max-width: 26rem;
+		margin-top: 2.5rem;
+		padding-top: 1.5rem;
+		border-top: 1px dashed var(--line-divider);
+	}
+
+	.nf-recent-item:hover {
+		background-color: var(--btn-plain-bg-hover);
+	}
+
+	.nf-code {
+		font-size: clamp(4.5rem, 17vw, 9rem);
+		font-weight: 900;
+		line-height: 0.85;
+		letter-spacing: -0.06em;
+		font-variant-numeric: tabular-nums;
+		background-image: linear-gradient(
+			160deg,
+			var(--primary) 0%,
+			var(--primary) 45%,
+			transparent 130%
+		);
+		-webkit-background-clip: text;
+		background-clip: text;
+		color: transparent;
+		user-select: none;
+	}
+</style>

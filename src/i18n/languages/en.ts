@@ -38,4 +38,7 @@ export const en: Translation = {
 	[Key.author]: "Author",
 	[Key.publishedAt]: "Published at",
 	[Key.license]: "License",
+
+	[Key.notFound]: "Page not found",
+	[Key.notFoundDesc]: "There's nothing at this address — the link may be broken, or the URL has a typo.",
 };
